@@ -3,45 +3,64 @@ SPDX-License-Identifier: MIT
 SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
 -->
 
-# OBS WhisperBleep
+> OBS WhisperBleep
 
-OBS WhisperBleep è un filtro audio nativo per OBS Studio pensato per censurare
-in tempo quasi reale parole e frasi configurate dall'utente.
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](https://isocpp.org/) [![GitHub release](https://img.shields.io/github/v/release/Sythos/OBS_WhisperBleep?display_name=tag&sort=semver)](https://github.com/Sythos/OBS_WhisperBleep/releases/latest) [![Last commit](https://img.shields.io/github/last-commit/Sythos/OBS_WhisperBleep)](https://github.com/Sythos/OBS_WhisperBleep/commits/main/) [![Open issues](https://img.shields.io/github/issues/Sythos/OBS_WhisperBleep)](https://github.com/Sythos/OBS_WhisperBleep/issues) [![License](https://img.shields.io/github/license/Sythos/OBS_WhisperBleep)](https://github.com/Sythos/OBS_WhisperBleep/blob/main/LICENSE) [![Git](https://img.shields.io/badge/Git-Repository-F05032?logo=git&logoColor=white)](https://git-scm.com/) [![GitHub](https://img.shields.io/badge/GitHub-Sythos%2FOBS_WhisperBleep-181717?logo=github&logoColor=white)](https://github.com/Sythos/OBS_WhisperBleep)
 
-L'idea è semplice: il filtro ascolta l'audio che passa normalmente da OBS,
-mantiene un piccolo buffer per avere il tempo di riconoscere le parole con
-Whisper e, quando trova una corrispondenza, sostituisce l'intervallo interessato
-con un suono scelto dall'utente. Il suono può essere un beep, un "qua qua" da
-anatra, un abbaio oppure un file audio personalizzato.
+OBS WhisperBleep is a native OBS Studio audio filter designed to censor
+configured words and phrases in near real time.
 
-La configurazione è pensata per restare tutta nelle Properties di OBS. Il
-plugin dovrà occuparsi del buffering, dei timestamp e del lavoro pesante in
-worker separati, così il callback audio di OBS non viene bloccato da download,
-accessi al disco o inferenza.
+The idea is simple: the filter receives the audio that normally flows through
+OBS, keeps a small buffer long enough to recognize speech with Whisper and,
+when a match is found, replaces the affected interval with a sound selected by
+the user. The replacement can be a beep, a duck sound, a bark or a custom audio
+file.
 
-## Nota pratica sulla sincronizzazione
+The configuration is intended to live entirely in the OBS Properties panel.
+The plugin will handle buffering, timestamps and expensive work on dedicated
+workers so the OBS audio callback is not blocked by downloads, disk I/O or
+inference.
 
-Per mantenere più facilmente la sincronia tra audio e video, si raccomanda di
-predisporre tre delay audio consecutivi da **500 msec (0,5 secondi) ciascuno**,
-per un ritardo complessivo di circa **1,5 secondi**. La configurazione effettiva
-va comunque verificata sulla propria scena e sulla catena OBS utilizzata: il
-delay necessario dipende dal modello Whisper, dall'hardware e dalla latenza
-complessiva del sistema.
+=> Practical synchronization note
 
-## Stato del progetto
+To make audio/video synchronization easier to maintain, the recommended setup
+is three consecutive audio delays of **500 msec (0.5 seconds) each**, for a
+total delay of approximately **1.5 seconds**. Verify the final value against
+the actual scene and OBS chain: the required delay depends on the Whisper model,
+hardware and total system latency.
 
-Questo repository parte da uno scaffolding architetturale. Runtime Whisper,
-catalogo e download dei modelli, backend GPU, packaging e release multipiattaforma
-verranno definiti e verificati nelle milestone del progetto.
+=> Project status
 
-## Nota di ispirazione e disclaimer
+This repository starts from an architectural scaffold. The Whisper runtime,
+model catalog and downloads, GPU backends, packaging and multi-platform
+releases will be defined and verified in later milestones.
 
-OBS WhisperBleep nasce da codice originale ed è sviluppato senza effettuare il
-fork di CleanStream. Il progetto prende spunto dall'idea di Royshil per
-CleanStream; al momento della stesura, il relativo repository Git risultava
-abbandonato e non più aggiornato da oltre nove mesi. Non sono riuscito a ottenere
-un contatto o una risposta tramite email, messaggi sul repository Git o social.
+=> M0: local scaffold
 
-Questo progetto non dichiara di incorporare codice, commit, asset o pesi di
-CleanStream: eventuali componenti di terze parti saranno aggiunti soltanto dopo
-la verifica della loro provenienza, licenza e attribution.
+The first reference version is `0.1.0`. This phase contains the initial
+separation between core, model/runtime, OBS and platform code, a compilable
+plugin stub, deterministic tests, documentation and the GitHub Actions layout.
+
+With CMake 3.20 or newer and a C++20 compiler, verify the scaffold with:
+
+```text
+cmake --preset debug
+cmake --build --preset debug
+ctest --test-dir build/debug --output-on-failure
+```
+
+The M0 stub is not yet an operational OBS filter: it does not load the OBS API,
+run inference or download models. Those capabilities belong to later
+milestones.
+
+=> Inspiration and disclaimer
+
+OBS WhisperBleep is original code and is developed without forking CleanStream.
+The project is inspired by Royshil's CleanStream idea; at the time of writing,
+the related Git repository appeared abandoned and had not been updated for more
+than nine months. I was unable to establish contact or receive a response by
+email, repository messages or social media.
+
+This project claim to NOT incorporate CleanStream code, commits, assets or model weights.
+Any third-party component will be added only after its origin,
+license and attribution have been verified.

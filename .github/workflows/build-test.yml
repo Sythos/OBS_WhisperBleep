@@ -1,0 +1,186 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
+
+name: Build and test
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-2022
+            artifact_name: OBS-WhisperBleep-Windows-x64
+            archive_glob: OBS-WhisperBleep-*-Windows-x64.zip
+            osx_architectures: ''
+          - name: Linux x86_64
+            os: ubuntu-24.04
+            artifact_name: OBS-WhisperBleep-Linux-x86_64
+            archive_glob: OBS-WhisperBleep-*-Linux-x86_64.tar.gz
+            osx_architectures: ''
+          - name: macOS universal
+            os: macos-14
+            artifact_name: OBS-WhisperBleep-macOS-universal
+            archive_glob: OBS-WhisperBleep-*-macOS-universal.tar.gz
+            osx_architectures: x86_64;arm64
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Configure Windows x64
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "VERSION must contain MAJOR.MINOR.PATCH"
+          }
+
+          $cmakeArgs = @(
+            '-S', '.',
+            '-B', 'build',
+            '-G', 'Visual Studio 17 2022',
+            '-A', 'x64',
+            '-DOBS_WHISPERBLEEP_BUILD_TESTS=ON',
+            '-DOBS_WHISPERBLEEP_BUILD_PLUGIN_STUB=ON',
+            '-DOBS_WHISPERBLEEP_ENABLE_CUDA=OFF',
+            '-DWHISPER_RUNTIME=stub'
+          )
+          cmake @cmakeArgs
+
+      - name: Configure Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          OBS_WHISPERBLEEP_OSX_ARCHITECTURES: ${{ matrix.osx_architectures }}
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain MAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+
+          cmake_args=(
+            -S .
+            -B build
+            -G Ninja
+            -DCMAKE_BUILD_TYPE=Release
+            -DOBS_WHISPERBLEEP_BUILD_TESTS=ON
+            -DOBS_WHISPERBLEEP_BUILD_PLUGIN_STUB=ON
+            -DOBS_WHISPERBLEEP_ENABLE_CUDA=OFF
+            -DWHISPER_RUNTIME=stub
+          )
+          if [[ -n "${OBS_WHISPERBLEEP_OSX_ARCHITECTURES}" ]]; then
+            cmake_args+=("-DCMAKE_OSX_ARCHITECTURES=${OBS_WHISPERBLEEP_OSX_ARCHITECTURES}")
+          fi
+          cmake "${cmake_args[@]}"
+
+      - name: Build Windows x64
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cmake --build build --config Release --parallel
+
+      - name: Build Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        run: cmake --build build --parallel
+
+      - name: Test Windows x64
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Test Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Install Windows x64 staging tree
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cmake --install build --config Release --prefix stage
+
+      - name: Install Unix staging tree
+        if: runner.os != 'Windows'
+        shell: bash
+        run: cmake --install build --prefix stage
+
+      - name: Package Windows x64
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $forbiddenExtensions = @('.bin', '.gguf', '.onnx', '.pt', '.pth', '.safetensors')
+          $forbidden = Get-ChildItem -Path stage -File -Recurse | Where-Object {
+            ($forbiddenExtensions -contains $_.Extension.ToLowerInvariant()) -or
+            ($_.FullName -match '\\(model-cache|models|weights)\\')
+          }
+          if ($forbidden) {
+            $forbidden | ForEach-Object { Write-Error "Forbidden model/cache file: $($_.FullName)" }
+            exit 1
+          }
+
+          $archive = "OBS-WhisperBleep-$version-Windows-x64.zip"
+          Compress-Archive -Path (Join-Path (Resolve-Path stage) '*') -DestinationPath $archive
+          if (-not (Test-Path -LiteralPath $archive)) {
+            throw "Package was not created"
+          }
+
+      - name: Package Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          forbidden="$(find stage -type f \( \
+            -iname '*.bin' -o -iname '*.gguf' -o -iname '*.onnx' -o \
+            -iname '*.pt' -o -iname '*.pth' -o -iname '*.safetensors' -o \
+            -path '*/model-cache/*' -o -path '*/models/*' -o \
+            -path '*/weights/*' \
+          \))"
+          if [[ -n "$forbidden" ]]; then
+            echo "Forbidden model/cache file:" >&2
+            echo "$forbidden" >&2
+            exit 1
+          fi
+
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            archive="OBS-WhisperBleep-${version}-macOS-universal.tar.gz"
+          else
+            archive="OBS-WhisperBleep-${version}-Linux-x86_64.tar.gz"
+          fi
+          tar -C stage -czf "$archive" .
+          test -s "$archive"
+
+      - name: Upload validation package
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.archive_glob }}
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,11 @@
+SPDX-License-Identifier: MIT
+SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
+
+OBS WhisperBleep currently contains only original scaffold code authored by
+Sythos. No Whisper model weights, third-party audio assets, or third-party
+source files are bundled in this milestone.
+
+Third-party code, models, sounds, icons, workflow actions, and runtime
+components must be listed here or in the appropriate document under docs/ as
+soon as they are selected. Their original copyright notices and license terms
+must be preserved.

@@ -89,3 +89,40 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- OBS WhisperBleep CMake and model safeguards ---------------------------
+# The inherited JS_Barcode_Universal rules above are kept verbatim. These
+# project-specific overrides keep the C++ test tree versioned and exclude
+# local build products, model caches and downloaded weights.
+!tests/
+!tests/**
+!.github/
+!.github/actions/
+!.github/actions/**
+!.github/scripts/
+!.github/scripts/**
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+install_manifest.txt
+compile_commands.json
+*.obj
+*.o
+*.a
+*.lib
+*.dll
+*.dylib
+*.so
+*.exe
+*.pdb
+*.pt
+*.onnx
+*.safetensors
+model-cache/
+models/
+artifacts/
+packages/
