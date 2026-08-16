@@ -32,15 +32,16 @@ hardware and total system latency.
 
 => Project status
 
-This repository starts from an architectural scaffold. The Whisper runtime,
-model catalog and downloads, GPU backends, packaging and multi-platform
-releases will be defined and verified in later milestones.
+This repository now contains the M0 architectural scaffold and the M1 native
+OBS integration boundary. The Whisper runtime, model catalog and downloads,
+GPU backends, packaging and multi-platform releases remain later milestones.
 
-=> M0: local scaffold
+=> M0 and M1: scaffold and OBS boundary
 
-The first reference version is `0.1.0`. This phase contains the initial
-separation between core, model/runtime, OBS and platform code, a compilable
-plugin stub, deterministic tests, documentation and the GitHub Actions layout.
+The first reference version is `0.1.0`. The repository separates core,
+model/runtime, OBS and platform code, and now includes a pass-through native OBS
+filter target that is enabled only when an OBS SDK and `libobs` library are
+provided explicitly.
 
 With CMake 3.20 or newer and a C++20 compiler, verify the scaffold with:
 
@@ -50,9 +51,15 @@ cmake --build --preset debug
 ctest --test-dir build/debug --output-on-failure
 ```
 
-The M0 stub is not yet an operational OBS filter: it does not load the OBS API,
-run inference or download models. Those capabilities belong to later
+The default CI build remains OBS-independent and deterministic. The native M1
+target registers the filter and its initial Properties, manages instance
+lifecycle and settings, and returns incoming audio unchanged. It does not run
+Whisper inference or download models yet; those capabilities belong to later
 milestones.
+
+To enable the native module in a local OBS SDK build, configure
+`OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE=ON`, set `OBS_SDK_DIR`, and provide
+`OBS_LIB` when CMake cannot locate `libobs` automatically.
 
 => Technologies
 

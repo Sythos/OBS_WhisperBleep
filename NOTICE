@@ -1,6 +1,10 @@
 SPDX-License-Identifier: MIT
 SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
 
+The canonical MIT license text for this repository is provided in LICENSE.
+The SPDX identifier for the original project code is MIT, and the copyright
+holder is Sythos (www.sythos.net).
+
 OBS WhisperBleep currently contains only original scaffold code authored by
 Sythos. No Whisper model weights, third-party audio assets, or third-party
 source files are bundled in this milestone.

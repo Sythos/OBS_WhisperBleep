@@ -13,15 +13,12 @@
 # belong in the repository.
 # ---------------------------------------------------------------------------
 
-# --- Editor and local assistant artefacts ---------------------------------
-# Assistant working directories and instruction files are dot-prefixed or
+# --- Editor and local workspace artefacts ---------------------------------
+# Local working directories and instruction files are dot-prefixed or
 # all-caps by convention; both shapes are covered generically rather than by
 # naming individual tools, which dates badly.
-.assistant*/
-.ai/
-.cursor/
-.aider*
-.github/copilot-instructions.md
+.local-workspace/
+*.local
 *_INSTRUCTIONS.md
 .vscode/
 .idea/

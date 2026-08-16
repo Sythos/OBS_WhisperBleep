@@ -6,7 +6,8 @@
 namespace obs_whisperbleep::obs {
 
 std::vector<Property> default_properties() {
-  return {{"phrases", "Words or phrases to censor"},
+  return {{"enabled", "Enable WhisperBleep"},
+          {"phrases", "Words or phrases to censor"},
           {"model", "Whisper model"},
           {"backend", "Backend"},
           {"replacement", "Replacement sound"}};

@@ -13,10 +13,15 @@ project(OBSWhisperBleep VERSION "${OBS_WHISPERBLEEP_VERSION}" LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
-option(OBS_WHISPERBLEEP_BUILD_TESTS "Build deterministic M0 tests" ON)
+option(OBS_WHISPERBLEEP_BUILD_TESTS "Build deterministic core and OBS-boundary tests" ON)
 option(OBS_WHISPERBLEEP_BUILD_PLUGIN_STUB "Build the non-OBS plugin stub" ON)
+option(OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE
+  "Build the native OBS filter module when an OBS SDK is supplied"
+  OFF
+)
 option(OBS_WHISPERBLEEP_ENABLE_CUDA "Reserve the CUDA backend option for a validated implementation" OFF)
-set(OBS_SDK_DIR "" CACHE PATH "OBS SDK directory (reserved for M1 integration)")
+set(OBS_SDK_DIR "" CACHE PATH "OBS SDK directory containing libobs headers and libraries")
+set(OBS_LIB "" CACHE FILEPATH "Optional explicit libobs library for the native module")
 set(WHISPER_RUNTIME "stub" CACHE STRING "Whisper runtime selection")
 set_property(CACHE WHISPER_RUNTIME PROPERTY STRINGS stub openai-whisper native)
 
@@ -71,6 +76,83 @@ if(OBS_WHISPERBLEEP_BUILD_PLUGIN_STUB)
   endif()
 endif()
 
+if(OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE)
+  if(NOT OBS_SDK_DIR)
+    message(FATAL_ERROR
+      "OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE requires OBS_SDK_DIR."
+    )
+  endif()
+
+  find_path(OBS_INCLUDE_DIR
+    NAMES obs.h
+    PATHS
+      "${OBS_SDK_DIR}/libobs"
+      "${OBS_SDK_DIR}/include"
+      "${OBS_SDK_DIR}/include/obs"
+    NO_DEFAULT_PATH
+  )
+  find_path(OBS_MODULE_INCLUDE_DIR
+    NAMES obs-module.h
+    PATHS
+      "${OBS_SDK_DIR}/libobs"
+      "${OBS_SDK_DIR}/include"
+      "${OBS_SDK_DIR}/include/obs"
+    NO_DEFAULT_PATH
+  )
+
+  if(NOT OBS_INCLUDE_DIR OR NOT OBS_MODULE_INCLUDE_DIR)
+    message(FATAL_ERROR
+      "OBS_SDK_DIR must contain obs.h and obs-module.h."
+    )
+  endif()
+
+  if(NOT OBS_LIB)
+    find_library(OBS_LIB
+      NAMES obs libobs
+      PATHS
+        "${OBS_SDK_DIR}/build/libobs"
+        "${OBS_SDK_DIR}/build/lib"
+        "${OBS_SDK_DIR}/lib"
+        "${OBS_SDK_DIR}/bin"
+      NO_DEFAULT_PATH
+    )
+  endif()
+
+  if(NOT OBS_LIB)
+    message(FATAL_ERROR
+      "Set OBS_LIB to the libobs library required by the native module."
+    )
+  endif()
+
+  add_library(obs_whisperbleep_plugin MODULE
+    src/obs/obs_module.cpp
+    src/obs/obs_filter.cpp
+    src/obs/obs_properties.cpp
+  )
+  target_include_directories(obs_whisperbleep_plugin PRIVATE
+    include
+    "${OBS_INCLUDE_DIR}"
+    "${OBS_MODULE_INCLUDE_DIR}"
+  )
+  target_link_libraries(obs_whisperbleep_plugin PRIVATE
+    obs_whisperbleep_core
+    "${OBS_LIB}"
+  )
+  target_compile_definitions(obs_whisperbleep_plugin PRIVATE
+    OBS_WHISPERBLEEP_WITH_OBS=1
+  )
+  target_compile_features(obs_whisperbleep_plugin PRIVATE cxx_std_20)
+  if(MSVC)
+    target_compile_options(obs_whisperbleep_plugin PRIVATE /W4 /permissive-)
+  else()
+    target_compile_options(obs_whisperbleep_plugin PRIVATE -Wall -Wextra -Wpedantic)
+  endif()
+  set_target_properties(obs_whisperbleep_plugin PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "obs-whisperbleep"
+  )
+endif()
+
 if(OBS_WHISPERBLEEP_BUILD_TESTS)
   enable_testing()
 
@@ -88,6 +170,15 @@ if(OBS_WHISPERBLEEP_BUILD_TESTS)
   target_link_libraries(obs_whisperbleep_integration_tests PRIVATE obs_whisperbleep_core)
   target_include_directories(obs_whisperbleep_integration_tests PRIVATE include)
   add_test(NAME integration COMMAND obs_whisperbleep_integration_tests)
+
+  add_executable(obs_whisperbleep_obs_tests
+    tests/obs/test_obs.cpp
+    src/obs/obs_filter.cpp
+    src/obs/obs_properties.cpp
+  )
+  target_link_libraries(obs_whisperbleep_obs_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_obs_tests PRIVATE include)
+  add_test(NAME obs COMMAND obs_whisperbleep_obs_tests)
 endif()
 
 install(TARGETS obs_whisperbleep_core
@@ -96,6 +187,13 @@ install(TARGETS obs_whisperbleep_core
 )
 if(OBS_WHISPERBLEEP_BUILD_PLUGIN_STUB)
   install(TARGETS obs_whisperbleep_plugin_stub
+    LIBRARY DESTINATION obs-plugins
+    RUNTIME DESTINATION obs-plugins
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  )
+endif()
+if(OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE)
+  install(TARGETS obs_whisperbleep_plugin
     LIBRARY DESTINATION obs-plugins
     RUNTIME DESTINATION obs-plugins
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
