@@ -195,8 +195,7 @@ int main() {
   BlockingDownloader blocking_downloader;
   ModelManager asynchronous_manager(default_catalog(), &blocking_downloader,
                                      &verifier, nullptr, async_cache_root);
-  const auto selection =
-      asynchronous_manager.select_async(ModelId::base);
+  auto selection = asynchronous_manager.select_async(ModelId::base);
   blocking_downloader.wait_until_entered();
   expect(asynchronous_manager.state() == ModelState::downloading &&
              asynchronous_manager.pending_model() == ModelId::base,
