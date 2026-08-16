@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace obs_whisperbleep::platform {
 
@@ -18,5 +20,9 @@ struct PlatformInfo {
 };
 
 [[nodiscard]] PlatformInfo current_platform() noexcept;
+
+/** Returns the per-user cache directory for a project-specific data scope. */
+[[nodiscard]] std::filesystem::path user_cache_directory(
+    std::string_view application_name);
 
 }  // namespace obs_whisperbleep::platform

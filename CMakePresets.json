@@ -15,7 +15,7 @@
     {
       "name": "debug",
       "displayName": "OBS WhisperBleep Debug",
-      "description": "Portable M2 build with deterministic audio pipeline tests",
+      "description": "Portable M3 build with deterministic model pipeline tests",
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
@@ -27,7 +27,7 @@
     {
       "name": "release",
       "displayName": "OBS WhisperBleep Release",
-      "description": "Portable M2 build prepared for packaging",
+      "description": "Portable M3 build prepared for packaging",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",

@@ -19,6 +19,8 @@ struct TranscriptSegment {
 
 enum class RuntimeStatus { ready, unavailable, error };
 
+[[nodiscard]] const char* runtime_status_name(RuntimeStatus status) noexcept;
+
 class IWhisperRuntime {
  public:
   virtual ~IWhisperRuntime() = default;

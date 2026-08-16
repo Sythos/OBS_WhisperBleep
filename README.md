@@ -33,8 +33,8 @@ hardware and total system latency.
 => Project status
 
 This repository now contains the M0 architectural scaffold, the M1 native OBS
-integration boundary and the M2 deterministic audio pipeline. The Whisper
-runtime, model catalog and downloads, GPU backends, packaging and
+integration boundary, the M2 deterministic audio pipeline and the M3 model
+catalog/cache boundary. Real Whisper inference, GPU validation, packaging and
 multi-platform releases remain later milestones.
 
 => M0 and M1: scaffold and OBS boundary
@@ -78,8 +78,23 @@ existing renderer loops short replacement
 audio, trims long replacement audio at the target interval, maps channels and
 can apply a configurable edge fade while preserving the input buffer length.
 
-M2 does not run Whisper or download models. Those runtime, catalog, checksum
-and cache responsibilities are reserved for M3.
+M2 does not run Whisper or download models. The M3 boundary adds the verified
+catalog, cache state and transport abstraction without placing model weights in
+the repository.
+
+=> M3 model catalog and cache boundary
+
+The catalog mirrors the six required OpenAI Whisper identifiers and records the
+official source URL, upstream version, PyTorch checkpoint format, MIT model
+license and SHA-256 value from the upstream manifest. Model weights remain
+outside Git and are resolved into a per-user cache directory.
+
+The downloader verifies existing or newly transferred files before publishing
+them through a temporary-file and rename flow. Local `file://` sources are
+supported for deterministic tests; HTTPS requires an explicit platform transport
+adapter. `ModelManager` exposes synchronized downloading, verification and
+activation states, preserves the last active model on failure, supports rollback
+and provides retain-previous or selected-only retention policies.
 
 => Technologies
 

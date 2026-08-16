@@ -190,6 +190,25 @@ if(OBS_WHISPERBLEEP_BUILD_TESTS)
   target_link_libraries(obs_whisperbleep_m2_tests PRIVATE obs_whisperbleep_core)
   target_include_directories(obs_whisperbleep_m2_tests PRIVATE include)
   add_test(NAME m2 COMMAND obs_whisperbleep_m2_tests)
+
+  add_executable(obs_whisperbleep_m3_catalog_tests
+    tests/m3/test_m3_catalog.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m3_catalog_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m3_catalog_tests PRIVATE include)
+  add_test(NAME m3_catalog COMMAND obs_whisperbleep_m3_catalog_tests)
+
+  add_executable(obs_whisperbleep_m3_downloader_tests
+    tests/m3/test_m3_downloader.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m3_downloader_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m3_downloader_tests PRIVATE include)
+  add_test(NAME m3_downloader COMMAND obs_whisperbleep_m3_downloader_tests)
+
+  add_executable(obs_whisperbleep_m3_tests tests/m3/test_m3.cpp)
+  target_link_libraries(obs_whisperbleep_m3_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m3_tests PRIVATE include)
+  add_test(NAME m3 COMMAND obs_whisperbleep_m3_tests)
 endif()
 
 install(TARGETS obs_whisperbleep_core

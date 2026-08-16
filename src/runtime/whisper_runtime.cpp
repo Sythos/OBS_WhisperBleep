@@ -5,6 +5,18 @@
 
 namespace obs_whisperbleep::runtime {
 
+const char* runtime_status_name(RuntimeStatus status) noexcept {
+  switch (status) {
+    case RuntimeStatus::ready:
+      return "ready";
+    case RuntimeStatus::unavailable:
+      return "unavailable";
+    case RuntimeStatus::error:
+      return "error";
+  }
+  return "unknown";
+}
+
 RuntimeStatus StubWhisperRuntime::initialize(std::string_view model_path) {
   (void)model_path;
   return RuntimeStatus::unavailable;

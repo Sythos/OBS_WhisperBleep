@@ -39,6 +39,19 @@ M1 keeps these properties deliberately small. They are translated into the
 filter instance settings and are persisted through OBS's settings object so
 that reopening a scene or restarting OBS restores the selected values.
 
+==> Future plugin menu workflow
+
+The later dynamic Properties surface shall use a two-pane plugin menu: a
+vertical section navigation on the left and a wide contextual pane on the
+right. Every initial opening selects the first left-hand item and displays its
+content in the contextual pane. A general or about section shall expose a
+`Check Updates` action that compares the canonical installed version with the
+latest release at
+`https://github.com/Sythos/OBS_WhisperBleep/releases`. If a newer release is
+available, the UI shows a popup with the release information and offers to
+open that URL in the external browser; it does not silently download or install
+the update.
+
 ==> Pass-through behavior
 
 When the filter is disabled, not yet ready, or has no confirmed censor interval,
@@ -89,10 +102,23 @@ and can be configured in frames. Signed intervals are clamped to the input
 buffer before index conversion; intervals ending at or before frame zero are
 ignored safely. This is the M2 duration and overlap policy.
 
+=> M3 model catalog and cache boundary
+
+M3 records the official OpenAI Whisper model manifest without storing model
+weights in Git. Each descriptor carries its required identifier, approved
+source URL, upstream version metadata, checkpoint format, MIT model license and
+SHA-256 checksum. The platform layer resolves a per-user cache directory rather
+than a repository-relative path.
+
+`ModelDownloader` publishes only files that pass checksum and optional size
+checks. It uses a temporary file and rename flow, supports cancellation, and
+accepts an explicit HTTPS transport adapter while keeping deterministic local
+`file://` tests available. `ModelManager` serializes selection, exposes pending
+and active states, verifies and optionally activates a model before replacing the
+previous active record, and supports rollback plus retention policy choices.
+
 => Deferred milestones
 
-Whisper inference, model downloads and cache management, Python/PyTorch
-execution, and the CUDA backend remain later milestones. M2 deliberately uses
-simulated speech segments and a synthetic beep; it does not download or bundle
-Whisper models. M3 will connect the isolated runtime interface, verified model
-catalog and asynchronous model lifecycle.
+Whisper inference, Python/PyTorch execution and the CUDA backend remain later
+milestones. M3 deliberately keeps the runtime isolated and does not download or
+bundle Whisper models in the repository.

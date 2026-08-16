@@ -76,4 +76,13 @@ performing out-of-bounds writes.
 
 M2 is intentionally a testable audio and scheduling boundary. Whisper
 inference, model downloads, checksum verification and model-cache management
-remain M3 work and must not be introduced as setup prerequisites here.
+are covered by the separate M3 tests below and are not setup prerequisites.
+
+=> M3 model and cache verification
+
+M3 verification remains dependency-free and must not download Whisper weights.
+Run the complete test suite as above; the M3 tests cover the official catalog
+metadata, SHA-256-aware local cache transfer, cancellation, injected transport,
+model verification/activation/rollback states and CPU fallback metadata. The
+default downloader accepts local `file://` fixtures; an HTTPS transport is an
+explicit integration dependency and is never called by the OBS realtime path.
