@@ -118,7 +118,9 @@ and active states, verifies and optionally activates a model before replacing th
 previous active record, and supports rollback plus retention policy choices. Its
 manager-owned asynchronous selection worker keeps download, verification and
 runtime activation outside the realtime callback. A missing or non-absolute
-per-user cache path fails before the downloader is invoked.
+per-user cache path fails before the downloader is invoked. Worker shutdown
+signals the downloader cancellation token before joining, so cooperative
+transports can terminate without leaving an in-flight transfer behind.
 
 => Deferred milestones
 

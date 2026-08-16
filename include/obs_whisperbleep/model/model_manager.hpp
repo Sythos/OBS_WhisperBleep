@@ -3,9 +3,11 @@
 
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <filesystem>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <queue>
@@ -104,6 +106,8 @@ class ModelManager {
   };
 
   void set_error(const std::string& message);
+  bool select_impl(ModelId id, ModelRetentionPolicy policy,
+                   const DownloadCancellation& cancellation);
   bool restore_runtime(const std::optional<ModelRecord>& record,
                        std::string& error);
   void worker_loop();
@@ -121,6 +125,8 @@ class ModelManager {
   std::mutex async_mutex_;
   std::condition_variable async_condition_;
   std::queue<AsyncRequest> async_requests_;
+  std::shared_ptr<std::atomic_bool> async_cancel_ =
+      std::make_shared<std::atomic_bool>(false);
   bool async_stopping_ = false;
   std::thread async_worker_;
   ModelState state_ = ModelState::unselected;

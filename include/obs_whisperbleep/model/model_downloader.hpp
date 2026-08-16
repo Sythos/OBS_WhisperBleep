@@ -50,6 +50,14 @@ class IModelDownloader {
   [[nodiscard]] virtual DownloadResult download(
       const ModelDescriptor& model,
       const std::filesystem::path& destination) = 0;
+  [[nodiscard]] virtual DownloadResult download(
+      const ModelDescriptor& model, const std::filesystem::path& destination,
+      const DownloadOptions& options) {
+    // Implementations that perform blocking I/O should poll
+    // options.is_cancelled and return DownloadStatus::cancelled promptly.
+    (void)options;
+    return download(model, destination);
+  }
 };
 
 /**
@@ -74,7 +82,7 @@ class ModelDownloader final : public IModelDownloader {
   [[nodiscard]] DownloadResult download(
       const ModelDescriptor& model,
       const std::filesystem::path& destination,
-      const DownloadOptions& options);
+      const DownloadOptions& options) override;
 
  private:
   DownloadOptions options_;

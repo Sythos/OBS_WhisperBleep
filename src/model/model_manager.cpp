@@ -5,19 +5,28 @@
 
 #include <exception>
 #include <filesystem>
+#include <string_view>
 #include <utility>
 
 #include "obs_whisperbleep/platform/platform_info.hpp"
 
 namespace obs_whisperbleep::model {
 
+namespace {
+
+constexpr std::string_view kWhisperCheckpointFormat =
+    "openai-whisper-pytorch-checkpoint";
+
+}  // namespace
+
 ModelVerificationResult ModelVerifier::verify(
     const ModelDescriptor& model, const std::filesystem::path& path) {
   if (model.name.empty()) {
     return {VerificationStatus::failed, "Model descriptor has no name"};
   }
-  if (model.format.empty()) {
-    return {VerificationStatus::failed, "Model descriptor has no format"};
+  if (model.format != kWhisperCheckpointFormat) {
+    return {VerificationStatus::failed,
+            "Model descriptor uses an unsupported checkpoint format"};
   }
   if (path.empty() || !path.is_absolute()) {
     return {VerificationStatus::failed,
@@ -54,6 +63,7 @@ ModelManager::ModelManager(ModelCatalog catalog, IModelDownloader* downloader,
 }
 
 ModelManager::~ModelManager() {
+  async_cancel_->store(true);
   {
     std::lock_guard lock(async_mutex_);
     async_stopping_ = true;
@@ -65,8 +75,10 @@ ModelManager::~ModelManager() {
 }
 
 bool ModelManager::select(ModelId id, bool keep_previous) {
-  return select(id, keep_previous ? ModelRetentionPolicy::retain_previous
-                                 : ModelRetentionPolicy::selected_only);
+  return select_impl(id,
+                     keep_previous ? ModelRetentionPolicy::retain_previous
+                                   : ModelRetentionPolicy::selected_only,
+                     {});
 }
 
 ModelSelectionFuture ModelManager::select_async(ModelId id,
@@ -96,7 +108,16 @@ ModelSelectionFuture ModelManager::select_async(ModelId id,
 }
 
 bool ModelManager::select(ModelId id, ModelRetentionPolicy policy) {
+  return select_impl(id, policy, {});
+}
+
+bool ModelManager::select_impl(ModelId id, ModelRetentionPolicy policy,
+                               const DownloadCancellation& cancellation) {
   std::lock_guard selection_lock(selection_mutex_);
+  if (cancellation && cancellation()) {
+    set_error("Model selection cancelled");
+    return false;
+  }
   const auto* descriptor = catalog_.find(id);
   if (descriptor == nullptr) {
     set_error("Model is not present in the catalog");
@@ -162,10 +183,13 @@ bool ModelManager::select(ModelId id, ModelRetentionPolicy policy) {
     return true;
   }
 
-  const auto destination = cache_root_ / (descriptor->name + ".model");
+  const auto destination =
+      cache_root_ / (std::string(model_id_name(id)) + ".model");
   DownloadResult result;
   try {
-    result = downloader_->download(*descriptor, destination);
+    DownloadOptions download_options;
+    download_options.is_cancelled = cancellation;
+    result = downloader_->download(*descriptor, destination, download_options);
   } catch (const std::exception& error) {
     set_error(std::string("Model download failed: ") + error.what());
     return false;
@@ -177,6 +201,11 @@ bool ModelManager::select(ModelId id, ModelRetentionPolicy policy) {
   if (result.status != DownloadStatus::success) {
     set_error(result.message.empty() ? "Model download failed"
                                      : result.message);
+    return false;
+  }
+
+  if (cancellation && cancellation()) {
+    set_error("Model selection cancelled");
     return false;
   }
 
@@ -361,6 +390,9 @@ bool ModelManager::restore_runtime(const std::optional<ModelRecord>& record,
 }
 
 void ModelManager::worker_loop() {
+  const DownloadCancellation cancellation = [token = async_cancel_] {
+    return token->load();
+  };
   for (;;) {
     AsyncRequest request;
     {
@@ -377,7 +409,7 @@ void ModelManager::worker_loop() {
 
     bool result = false;
     try {
-      result = select(request.id, request.policy);
+      result = select_impl(request.id, request.policy, cancellation);
     } catch (const std::exception& exception) {
       set_error(std::string("Asynchronous model selection failed: ") +
                 exception.what());

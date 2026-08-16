@@ -254,6 +254,18 @@ int main() {
              !relative_cache_status.cache_error.empty(),
          "reports the unavailable cache in manager status");
 
+  SuccessfulDownloader confined_downloader;
+  const ModelDescriptor unsafe_name_descriptor{
+      ModelId::tiny, "../outside", "file://unused", std::string(64, '0'),
+      "MIT", 0, std::nullopt, "openai-whisper-pytorch-checkpoint"};
+  ModelManager confined_manager(
+      ModelCatalog(std::vector<ModelDescriptor>{unsafe_name_descriptor}),
+      &confined_downloader, &verifier, nullptr, cache_root);
+  expect(confined_manager.select(ModelId::tiny) &&
+             confined_downloader.last_destination.parent_path() == cache_root &&
+             confined_downloader.last_destination.filename() == "tiny.model",
+         "confines model cache filenames to the selected cache directory");
+
   std::error_code cleanup_error;
   std::filesystem::remove_all(cache_root, cleanup_error);
   std::filesystem::remove_all(async_cache_root, cleanup_error);

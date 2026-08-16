@@ -23,5 +23,6 @@ adapter; no network operation is performed in the OBS realtime callback. The
 manager-owned asynchronous worker exposes downloading, verification and
 activation states, keeps the active model unchanged until strict file
 verification and optional runtime activation succeed, and restores the previous
-runtime when a replacement activation fails. It supports rollback plus
-retain-previous or selected-only retention.
+runtime when a replacement activation fails. Worker shutdown propagates a
+cancellation token to cooperative download transports before joining. It
+supports rollback plus retain-previous or selected-only retention.
