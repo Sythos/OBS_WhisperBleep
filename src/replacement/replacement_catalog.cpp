@@ -15,8 +15,16 @@ namespace {
 
 [[nodiscard]] bool has_remote_scheme(const std::filesystem::path& path) {
   const auto text = path.generic_string();
-  const auto separator = text.find("://");
-  if (separator == std::string::npos || separator == 0) {
+  auto separator = text.find("://");
+  if (separator == std::string::npos) {
+    // Some standard-library path implementations collapse a URI's double
+    // slash while constructing a filesystem path (for example, https:/...).
+    // Recognize that representation too, while excluding Windows drive roots.
+    separator = text.find(":/");
+  }
+  if (separator == std::string::npos || separator == 0 ||
+      (separator == 1 &&
+       std::isalpha(static_cast<unsigned char>(text.front())) != 0)) {
     return false;
   }
 
