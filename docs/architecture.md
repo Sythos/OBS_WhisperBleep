@@ -115,7 +115,10 @@ checks. It uses a temporary file and rename flow, supports cancellation, and
 accepts an explicit HTTPS transport adapter while keeping deterministic local
 `file://` tests available. `ModelManager` serializes selection, exposes pending
 and active states, verifies and optionally activates a model before replacing the
-previous active record, and supports rollback plus retention policy choices.
+previous active record, and supports rollback plus retention policy choices. Its
+manager-owned asynchronous selection worker keeps download, verification and
+runtime activation outside the realtime callback. A missing or non-absolute
+per-user cache path fails before the downloader is invoked.
 
 => Deferred milestones
 

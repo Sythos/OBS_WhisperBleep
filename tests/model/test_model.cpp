@@ -33,6 +33,15 @@ class SuccessfulDownloader final : public obs_whisperbleep::model::IModelDownloa
   std::filesystem::path last_destination;
 };
 
+class AcceptingVerifier final : public obs_whisperbleep::model::IModelVerifier {
+ public:
+  [[nodiscard]] obs_whisperbleep::model::ModelVerificationResult verify(
+      const obs_whisperbleep::model::ModelDescriptor&,
+      const std::filesystem::path&) override {
+    return {obs_whisperbleep::model::VerificationStatus::verified, {}};
+  }
+};
+
 }  // namespace
 
 int main() {
@@ -46,7 +55,10 @@ int main() {
   expect(!model_id_from_name("missing").has_value(), "rejects unknown model");
 
   SuccessfulDownloader downloader;
-  ModelManager manager(catalog, &downloader);
+  AcceptingVerifier verifier;
+  const auto cache_root =
+      std::filesystem::temp_directory_path() / "obs-whisperbleep-model-test";
+  ModelManager manager(catalog, &downloader, &verifier, nullptr, cache_root);
   expect(manager.select(ModelId::tiny), "activates downloaded model");
   expect(manager.active_model() == ModelId::tiny, "stores active model");
   expect(downloader.last_destination.filename() == "tiny.model",
@@ -59,6 +71,9 @@ int main() {
          "falls back to CPU when CUDA is unavailable");
   const auto automatic = select_backend(Backend::auto_select, {true, true});
   expect(automatic.selected == Backend::cuda, "auto selects CUDA when available");
+
+  std::error_code cleanup_error;
+  std::filesystem::remove_all(cache_root, cleanup_error);
 
   return EXIT_SUCCESS;
 }

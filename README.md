@@ -93,8 +93,10 @@ The downloader verifies existing or newly transferred files before publishing
 them through a temporary-file and rename flow. Local `file://` sources are
 supported for deterministic tests; HTTPS requires an explicit platform transport
 adapter. `ModelManager` exposes synchronized downloading, verification and
-activation states, preserves the last active model on failure, supports rollback
-and provides retain-previous or selected-only retention policies.
+activation states, provides a manager-owned asynchronous selection worker,
+preserves the last active model on failure, supports rollback and provides
+retain-previous or selected-only retention policies. A missing or non-absolute
+per-user cache path fails safely before any transfer is attempted.
 
 => Technologies
 

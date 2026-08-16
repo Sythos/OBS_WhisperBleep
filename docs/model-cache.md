@@ -12,13 +12,16 @@ model license and the SHA-256 values published in the upstream manifest.
 
 The model cache is per-user and platform-resolved: Windows uses `LOCALAPPDATA`,
 macOS uses `~/Library/Caches`, and Linux follows `XDG_CACHE_HOME` or
-`~/.cache`. The downloader writes to a temporary file, verifies the catalog
-checksum before publication, and preserves a previously valid destination when
-replacement fails.
+`~/.cache`. A cache path is accepted only when it is absolute; if resolution
+fails, selection stops before any downloader call. The downloader writes to a
+temporary file, verifies the catalog checksum before publication, and preserves
+a previously valid destination when replacement fails.
 
 The portable default transport supports local `file://` sources for deterministic
 tests. HTTPS transfers must be supplied through an explicit platform transport
 adapter; no network operation is performed in the OBS realtime callback. The
-manager exposes downloading, verification and activation states, keeps the
-active model unchanged until verification and optional runtime activation
-succeed, and supports rollback plus retain-previous or selected-only retention.
+manager-owned asynchronous worker exposes downloading, verification and
+activation states, keeps the active model unchanged until strict file
+verification and optional runtime activation succeed, and restores the previous
+runtime when a replacement activation fails. It supports rollback plus
+retain-previous or selected-only retention.

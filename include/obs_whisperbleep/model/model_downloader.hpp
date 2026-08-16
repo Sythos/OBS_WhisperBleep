@@ -26,6 +26,11 @@ struct DownloadResult {
   std::string message;
 };
 
+struct DownloadVerificationResult {
+  bool verified = false;
+  std::string message;
+};
+
 using DownloadCancellation = std::function<bool()>;
 
 using DownloadTransport = std::function<bool(
@@ -48,7 +53,7 @@ class IModelDownloader {
 };
 
 /**
- * Verified model downloader for a caller-provided user cache path.
+ * Verified model downloader for a caller-provided absolute user cache path.
  *
  * The portable default supports local file:// sources. HTTP and HTTPS are
  * handled by an explicitly injected transport so network access remains
@@ -57,6 +62,10 @@ class IModelDownloader {
 class ModelDownloader final : public IModelDownloader {
  public:
   explicit ModelDownloader(DownloadOptions options = {});
+
+  /** Verify a completed cache file without starting a transfer. */
+  [[nodiscard]] static DownloadVerificationResult verify_file(
+      const ModelDescriptor& model, const std::filesystem::path& path);
 
   [[nodiscard]] DownloadResult download(
       const ModelDescriptor& model,

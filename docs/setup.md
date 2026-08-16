@@ -83,6 +83,8 @@ are covered by the separate M3 tests below and are not setup prerequisites.
 M3 verification remains dependency-free and must not download Whisper weights.
 Run the complete test suite as above; the M3 tests cover the official catalog
 metadata, SHA-256-aware local cache transfer, cancellation, injected transport,
-model verification/activation/rollback states and CPU fallback metadata. The
-default downloader accepts local `file://` fixtures; an HTTPS transport is an
-explicit integration dependency and is never called by the OBS realtime path.
+strict model verification/activation/rollback states, the manager-owned
+asynchronous selection worker and CPU fallback metadata. The default downloader
+accepts local `file://` fixtures; an HTTPS transport is an explicit integration
+dependency and is never called by the OBS realtime path. A missing or relative
+per-user cache path is rejected before transfer.

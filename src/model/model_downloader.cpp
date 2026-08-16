@@ -319,6 +319,22 @@ class Sha256 final {
 ModelDownloader::ModelDownloader(DownloadOptions options)
     : options_(std::move(options)) {}
 
+DownloadVerificationResult ModelDownloader::verify_file(
+    const ModelDescriptor& model, const std::filesystem::path& path) {
+  if (!valid_sha256(model.sha256)) {
+    return {false, "Model catalog does not contain a valid SHA-256 checksum"};
+  }
+  std::string digest;
+  std::string error;
+  if (!hash_file(path, model.expected_size_bytes, digest, error)) {
+    return {false, error};
+  }
+  if (lower_ascii(digest) != lower_ascii(model.sha256)) {
+    return {false, "Model SHA-256 checksum does not match the catalog"};
+  }
+  return {true, {}};
+}
+
 DownloadResult ModelDownloader::download(
     const ModelDescriptor& model, const std::filesystem::path& destination) {
   return download(model, destination, options_);
@@ -335,11 +351,14 @@ DownloadResult ModelDownloader::download(
     return failure(DownloadStatus::verification_failed,
                    "Model catalog does not contain a valid SHA-256 checksum");
   }
-  if (destination.empty() || destination.filename().empty() ||
+  if (destination.empty() || !destination.is_absolute() ||
+      destination.filename().empty() ||
       destination.filename() == "." || destination.filename() == "..") {
     return failure(DownloadStatus::failed,
-                   "Model destination must include a file name");
+                   "Model destination must be an absolute path with a file "
+                   "name");
   }
+  std::filesystem::path temporary;
   try {
     if (cancelled(options.is_cancelled)) {
       return failure(DownloadStatus::cancelled, "Model download cancelled");
@@ -365,7 +384,7 @@ DownloadResult ModelDownloader::download(
       return {DownloadStatus::success, destination, "Model already verified"};
     }
 
-    const auto temporary = temporary_path_for(destination);
+    temporary = temporary_path_for(destination);
     std::error_code cleanup_error;
     std::filesystem::remove(temporary, cleanup_error);
 
@@ -424,23 +443,35 @@ DownloadResult ModelDownloader::download(
     }
     std::filesystem::rename(temporary, destination, move_error);
     if (move_error) {
+      std::string message = "Unable to activate the downloaded model: " +
+                            move_error.message();
       if (had_destination) {
         std::error_code restore_error;
         std::filesystem::rename(backup, destination, restore_error);
+        if (restore_error) {
+          message += "; unable to restore the previous model: " +
+                     restore_error.message();
+        }
       }
       std::filesystem::remove(temporary, cleanup_error);
-      return failure(DownloadStatus::failed,
-                     "Unable to activate the downloaded model: " +
-                         move_error.message());
+      return failure(DownloadStatus::failed, std::move(message));
     }
     if (had_destination) {
       std::filesystem::remove(backup, cleanup_error);
     }
     return {DownloadStatus::success, destination, "Model verified and cached"};
   } catch (const std::exception& error) {
+    if (!temporary.empty()) {
+      std::error_code cleanup_error;
+      std::filesystem::remove(temporary, cleanup_error);
+    }
     return failure(DownloadStatus::failed,
                    std::string("Model download failed: ") + error.what());
   } catch (...) {
+    if (!temporary.empty()) {
+      std::error_code cleanup_error;
+      std::filesystem::remove(temporary, cleanup_error);
+    }
     return failure(DownloadStatus::failed,
                    "Model download failed with an unknown error");
   }

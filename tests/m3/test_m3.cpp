@@ -4,13 +4,14 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <vector>
 
 #include "obs_whisperbleep/model/model_manager.hpp"
@@ -24,6 +25,13 @@ void expect(bool condition, const char* message) {
     std::cerr << "M3 test failed: " << message << '\n';
     std::exit(EXIT_FAILURE);
   }
+}
+
+std::filesystem::path test_cache_root(const char* suffix) {
+  const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+  return std::filesystem::temp_directory_path() /
+         (std::string("obs-whisperbleep-m3-manager-") + suffix + "-" +
+          std::to_string(stamp));
 }
 
 class SuccessfulDownloader final
@@ -108,6 +116,11 @@ class ConfigurableRuntime final
       std::string_view model_path) override {
     last_path = std::string(model_path);
     ++initializations;
+    if (!queued_statuses.empty()) {
+      const auto next = queued_statuses.front();
+      queued_statuses.erase(queued_statuses.begin());
+      return next;
+    }
     return status;
   }
 
@@ -118,6 +131,7 @@ class ConfigurableRuntime final
 
   obs_whisperbleep::runtime::RuntimeStatus status =
       obs_whisperbleep::runtime::RuntimeStatus::ready;
+  std::vector<obs_whisperbleep::runtime::RuntimeStatus> queued_statuses;
   int initializations = 0;
   std::string last_path;
 };
@@ -131,7 +145,10 @@ int main() {
   SuccessfulDownloader downloader;
   ConfigurableVerifier verifier;
   ConfigurableRuntime runtime;
-  ModelManager manager(default_catalog(), &downloader, &verifier, &runtime);
+  const auto cache_root = test_cache_root("sync");
+  const auto async_cache_root = test_cache_root("async");
+  ModelManager manager(default_catalog(), &downloader, &verifier, &runtime,
+                       cache_root);
 
   expect(manager.select(ModelId::tiny), "activates a verified model");
   expect(manager.state() == ModelState::active &&
@@ -162,9 +179,12 @@ int main() {
   verifier.accepted = true;
 
   runtime.status = RuntimeStatus::unavailable;
+  runtime.queued_statuses = {RuntimeStatus::unavailable, RuntimeStatus::ready};
   expect(!manager.select(ModelId::small), "rejects unavailable runtime");
   expect(manager.active_model() == ModelId::tiny,
          "keeps the active model after runtime failure");
+  expect(runtime.last_path == manager.active_path().string(),
+         "restores the previous runtime after activation failure");
   runtime.status = RuntimeStatus::ready;
 
   expect(manager.select(ModelId::small, ModelRetentionPolicy::selected_only),
@@ -173,16 +193,16 @@ int main() {
          "clears previous retention only after activation");
 
   BlockingDownloader blocking_downloader;
-  ModelManager asynchronous_manager(default_catalog(), &blocking_downloader);
-  bool selected = false;
-  std::thread selector([&] { selected = asynchronous_manager.select(ModelId::base); });
+  ModelManager asynchronous_manager(default_catalog(), &blocking_downloader,
+                                     &verifier, nullptr, async_cache_root);
+  const auto selection =
+      asynchronous_manager.select_async(ModelId::base);
   blocking_downloader.wait_until_entered();
   expect(asynchronous_manager.state() == ModelState::downloading &&
              asynchronous_manager.pending_model() == ModelId::base,
          "exposes a synchronized pending download state");
   blocking_downloader.release();
-  selector.join();
-  expect(selected && asynchronous_manager.state() == ModelState::active,
+  expect(selection.get() && asynchronous_manager.state() == ModelState::active,
          "completes the serialized asynchronous selection");
 
   const auto fallback = select_backend(Backend::cuda, {true, false});
@@ -200,6 +220,44 @@ int main() {
   expect(std::string(runtime_status_name(RuntimeStatus::unavailable)) ==
              "unavailable",
          "reports runtime status metadata");
+
+  const auto strict_root = test_cache_root("strict");
+  const auto strict_source = strict_root / "source.pt";
+  std::filesystem::create_directories(strict_root);
+  {
+    std::ofstream output(strict_source, std::ios::binary);
+    output << "abc";
+  }
+  const ModelDescriptor strict_descriptor{
+      ModelId::tiny,
+      "tiny",
+      "file://" + strict_source.generic_string(),
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      "MIT",
+      0,
+      std::nullopt,
+      "openai-whisper-pytorch-checkpoint"};
+  ModelManager strict_manager(
+      ModelCatalog(std::vector<ModelDescriptor>{strict_descriptor}), nullptr,
+      nullptr, nullptr, strict_root / "cache");
+  expect(strict_manager.select(ModelId::tiny),
+         "default verifier accepts a verified model file");
+
+  const auto calls_before_relative_cache = downloader.calls;
+  ModelManager relative_cache_manager(default_catalog(), &downloader, &verifier,
+                                      nullptr, "relative-cache");
+  const auto relative_cache_status = relative_cache_manager.status();
+  expect(!relative_cache_manager.select(ModelId::tiny) &&
+             downloader.calls == calls_before_relative_cache,
+         "rejects a relative cache before downloading");
+  expect(!relative_cache_status.cache_available &&
+             !relative_cache_status.cache_error.empty(),
+         "reports the unavailable cache in manager status");
+
+  std::error_code cleanup_error;
+  std::filesystem::remove_all(cache_root, cleanup_error);
+  std::filesystem::remove_all(async_cache_root, cleanup_error);
+  std::filesystem::remove_all(strict_root, cleanup_error);
 
   return EXIT_SUCCESS;
 }
