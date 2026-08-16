@@ -63,10 +63,18 @@ AudioBuffer ReplacementRenderer::render(
 
   const auto merged = CensorScheduler::merge(intervals);
   for (const auto interval : merged) {
-    const auto begin = static_cast<std::size_t>(std::max<std::int64_t>(
-        0, interval.start_frame));
-    const auto end = static_cast<std::size_t>(std::min<std::int64_t>(
-        static_cast<std::int64_t>(input.frame_count()), interval.end_frame));
+    // Clamp while the interval is still signed. Converting a negative end
+    // frame to size_t before this check would wrap to a very large value and
+    // could make the renderer write past the output buffer.
+    const auto input_frames = input.frame_count();
+    const auto begin_frame = std::max<std::int64_t>(0, interval.start_frame);
+    const auto end_frame = std::min<std::int64_t>(
+        static_cast<std::int64_t>(input_frames), interval.end_frame);
+    if (end_frame <= 0 || begin_frame >= end_frame) {
+      continue;
+    }
+    const auto begin = static_cast<std::size_t>(begin_frame);
+    const auto end = static_cast<std::size_t>(end_frame);
     if (begin >= end) {
       continue;
     }

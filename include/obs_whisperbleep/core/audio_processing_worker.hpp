@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cstddef>
 #include <functional>
+#include <mutex>
 #include <thread>
 
 #include "obs_whisperbleep/core/audio_frame_queue.hpp"
@@ -16,8 +17,9 @@ using AudioFrameProcessor = std::function<void(AudioFrame)>;
 
 /**
  * Dedicated worker that drains a bounded audio queue without blocking the
- * realtime producer. Stop drains frames already accepted by the queue before
- * joining the worker thread.
+ * realtime producer. Submission remains non-blocking while shutdown coordinates
+ * in-flight submissions; stop drains every accepted frame before joining the
+ * worker thread.
  */
 class AudioProcessingWorker {
  public:
@@ -40,7 +42,10 @@ class AudioProcessingWorker {
 
   AudioFrameQueue queue_;
   AudioFrameProcessor processor_;
+  std::mutex lifecycle_mutex_;
   std::atomic<bool> stop_requested_{false};
+  std::atomic<bool> accepting_submissions_{false};
+  std::atomic<std::size_t> in_flight_submissions_{0};
   std::atomic<bool> running_{false};
   std::thread thread_;
 };

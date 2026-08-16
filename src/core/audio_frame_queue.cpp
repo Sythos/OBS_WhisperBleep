@@ -3,12 +3,26 @@
 
 #include "obs_whisperbleep/core/audio_frame_queue.hpp"
 
+#include <limits>
+#include <stdexcept>
 #include <utility>
 
 namespace obs_whisperbleep::core {
 
+namespace {
+
+[[nodiscard]] std::size_t slot_count(const std::size_t capacity) {
+  if (capacity == std::numeric_limits<std::size_t>::max()) {
+    throw std::length_error(
+        "AudioFrameQueue capacity cannot be represented by its ring buffer");
+  }
+  return capacity == 0 ? 1 : capacity + 1;
+}
+
+}  // namespace
+
 AudioFrameQueue::AudioFrameQueue(std::size_t capacity)
-    : slots_(capacity == 0 ? 1 : capacity + 1) {}
+    : slots_(slot_count(capacity)) {}
 
 std::size_t AudioFrameQueue::next_index(std::size_t index) const noexcept {
   return (index + 1) % slots_.size();

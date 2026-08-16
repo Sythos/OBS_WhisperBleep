@@ -85,7 +85,9 @@ external asset or runtime dependency. `ReplacementRenderer` applies the
 scheduled intervals while preserving the input buffer shape. It loops a short
 replacement across a longer interval, trims it at the interval boundary, and
 maps channels deterministically; an optional fade reduces replacement edges
-and can be configured in frames. This is the M2 duration and overlap policy.
+and can be configured in frames. Signed intervals are clamped to the input
+buffer before index conversion; intervals ending at or before frame zero are
+ignored safely. This is the M2 duration and overlap policy.
 
 => Deferred milestones
 

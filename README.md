@@ -70,10 +70,11 @@ frame is dropped and counted rather than blocking OBS. A dedicated worker
 drains accepted frames and finishes draining them before shutdown joins the
 worker thread.
 
-The test pipeline uses simulated speech segments with sample-rate conversion
-and a configurable delay, then merges overlapping or touching censor intervals
-deterministically. A dependency-free synthetic beep is available for tests and
-as the initial replacement. The existing renderer loops short replacement
+The test pipeline uses simulated speech segments with timestamp-to-frame
+conversion at the configured sample rate and a configurable delay, then merges
+overlapping or touching censor intervals deterministically. A dependency-free
+synthetic beep is available for tests and as the initial replacement. The
+existing renderer loops short replacement
 audio, trims long replacement audio at the target interval, maps channels and
 can apply a configurable edge fade while preserving the input buffer length.
 
@@ -86,6 +87,9 @@ The project is built around the following technologies:
 
 - C++20 for the native OBS Studio plugin and real-time audio processing.
 - CMake for cross-platform configuration, builds and packaging.
+- [OBS Studio 32.2.1](https://obsproject.com/download) as the host
+  application and native plugin API target; this is the stable version listed
+  on the official OBS download page, verified on 2026-08-16.
 - [OpenAI Whisper](https://github.com/openai/whisper) for speech-recognition
   models and the AI processing structure.
 - Python for model tooling and supporting automation.

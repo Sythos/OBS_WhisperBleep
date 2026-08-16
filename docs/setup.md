@@ -44,7 +44,7 @@ ctest --test-dir build/m1 --output-on-failure
 
 `OBS_SDK_DIR` supplies the OBS headers and `OBS_LIB` supplies the `libobs`
 library when CMake cannot locate it automatically. The native target is built
-only when `OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE=ON`; the default M0/M1 CI build
+only when `OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE=ON`; the default M0-M2 CI build
 does not require an OBS SDK.
 
 The M1 verification must cover filter registration, instance lifecycle,
@@ -70,7 +70,9 @@ configurable delay, deterministic merging of overlapping and touching
 intervals, synthetic beep generation, and replacement duration handling. The
 renderer must loop a replacement that is shorter than the censored interval,
 trim a replacement that is longer, and apply the configured edge fade without
-changing the output buffer length.
+changing the output buffer length. It must also ignore intervals fully before
+the input buffer and clip intervals that start before frame zero without
+performing out-of-bounds writes.
 
 M2 is intentionally a testable audio and scheduling boundary. Whisper
 inference, model downloads, checksum verification and model-cache management
