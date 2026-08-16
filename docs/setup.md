@@ -88,3 +88,21 @@ asynchronous selection worker and CPU fallback metadata. The default downloader
 accepts local `file://` fixtures; an HTTPS transport is an explicit integration
 dependency and is never called by the OBS realtime path. A missing or relative
 per-user cache path is rejected before transfer.
+
+=> M4 matching, replacement and UI verification
+
+M4 verification must cover the configurable phrase policy independently from
+Whisper inference: case-insensitive matching, whitespace normalization, empty
+and duplicate entry handling, timestamp association and deterministic interval
+generation. The replacement selector must preserve the stable `beep`, duck,
+bark and custom-audio identifiers. Custom audio validation and loading belong
+on a worker, while a missing or unsupported file must preserve pass-through
+audio and expose a readable error state.
+
+The native Properties workflow must be checked with the first left-hand menu
+item selected on initial opening, its content visible in the wide right-hand
+context pane, and the remaining sections reachable through the vertical menu.
+The general or about section must expose `Check Updates`; the action compares
+the canonical installed version with the latest GitHub release, reports a newer
+version in a popup and offers an explicit external-browser link. It must never
+silently download or install an update or block the OBS audio callback.

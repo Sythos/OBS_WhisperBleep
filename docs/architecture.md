@@ -122,6 +122,34 @@ per-user cache path fails before the downloader is invoked. Worker shutdown
 signals the downloader cancellation token before joining, so cooperative
 transports can terminate without leaving an in-flight transfer behind.
 
+=> M4 matching, replacement selection and UI contract
+
+M4 turns recognized text and timestamps into a configurable matching decision.
+The default phrase policy is case-insensitive, collapses runs of whitespace and
+discards empty or duplicate entries. The matcher remains a worker-side/core
+operation; it must not allocate, read files or wait in the OBS audio callback.
+Its results are associated with the transcription timeline so the scheduler can
+produce bounded replacement intervals. Punctuation, word boundaries and
+partial-match behavior are explicit policy settings and must be covered by
+deterministic tests before they are exposed as user options.
+
+Replacement selection has stable identifiers for the synthetic beep, the duck,
+the bark and a user-provided custom audio file. Prepackaged duck and bark assets
+must be sourced from audio that is fully royalty-free and legally redistributable
+before they enter `assets/`. Custom files are checked and decoded on a worker;
+missing or unsupported files produce a visible status and preserve pass-through
+audio rather than blocking OBS.
+
+The dynamic Properties surface is a two-pane workflow: a vertical section menu
+on the left and a wide contextual pane on the right. Opening the menu always
+selects the first left-hand item and renders its content in the right pane. A
+`Check Updates` action belongs in the general or about section. It compares the
+canonical installed project version with the latest release at
+`https://github.com/Sythos/OBS_WhisperBleep/releases`; when a newer release is
+found, the UI presents a popup with the release information and an explicit
+external-browser action. The plugin never silently installs an update, and the
+check is performed away from the realtime audio path.
+
 => Deferred milestones
 
 Whisper inference, Python/PyTorch execution and the CUDA backend remain later

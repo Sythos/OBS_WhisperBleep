@@ -33,8 +33,10 @@ hardware and total system latency.
 => Project status
 
 This repository now contains the M0 architectural scaffold, the M1 native OBS
-integration boundary, the M2 deterministic audio pipeline and the M3 model
-catalog/cache boundary. Real Whisper inference, GPU validation, packaging and
+integration boundary, the M2 deterministic audio pipeline, the M3 model
+catalog/cache boundary and the M4 matching and configuration boundary. The M4
+work defines configurable matching, replacement selection and the Properties
+navigation contract. Real Whisper inference, GPU validation, packaging and
 multi-platform releases remain later milestones.
 
 => M0 and M1: scaffold and OBS boundary
@@ -97,6 +99,32 @@ activation states, provides a manager-owned asynchronous selection worker,
 preserves the last active model on failure, supports rollback and provides
 retain-previous or selected-only retention policies. A missing or non-absolute
 per-user cache path fails safely before any transfer is attempted.
+
+=> M4 matching, replacement choices and UI contract
+
+M4 makes phrase matching configurable and testable. The default matching policy
+is case-insensitive and normalizes runs of whitespace; empty and duplicate
+entries are ignored. Matching remains outside the OBS realtime callback and
+produces intervals that can be associated with Whisper timestamps before the
+replacement plan is rendered. Punctuation, word-boundary behavior and partial
+matches remain explicit policy choices rather than hidden string operations.
+
+The replacement selector exposes the built-in `beep`, duck and bark choices as
+well as a user-provided custom audio file. Built-in duck and bark files may be
+added only after their provenance, royalty-free status and redistribution rights
+have been verified. Custom audio is validated and loaded outside the realtime
+callback; an unavailable or invalid asset must leave the original audio intact
+and expose a readable status to the user.
+
+The plugin Properties workflow uses a vertical section menu on the left and a
+wide contextual pane on the right. Every initial opening activates the first
+left-hand item and shows its corresponding content on the right. A `Check
+Updates` action in the general or about section compares the installed version
+with the latest GitHub release at
+`https://github.com/Sythos/OBS_WhisperBleep/releases`. When a newer version is
+available, the plugin shows a popup with the release information and offers to
+open the releases page in the external browser. It never silently downloads or
+installs an update, and update checks do not run in the realtime audio path.
 
 => Technologies
 

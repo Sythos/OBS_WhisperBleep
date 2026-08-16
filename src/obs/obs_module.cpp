@@ -99,7 +99,7 @@ obs_properties_t* filter_properties(void*) {
       OBS_COMBO_FORMAT_STRING);
   obs_property_list_add_string(replacement, "Beep", "beep");
   obs_property_list_add_string(replacement, "Duck", "duck");
-  obs_property_list_add_string(replacement, "Dog", "dog");
+  obs_property_list_add_string(replacement, "Bark", "bark");
   obs_property_list_add_string(replacement, "Custom audio", "custom");
   return properties;
 }

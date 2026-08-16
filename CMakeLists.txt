@@ -36,6 +36,7 @@ set(OBS_WHISPERBLEEP_CORE_SOURCES
   src/core/audio_frame_queue.cpp
   src/core/audio_processing_worker.cpp
   src/core/censor_scheduler.cpp
+  src/core/match_planner.cpp
   src/core/phrase_matcher.cpp
   src/core/replacement_renderer.cpp
   src/core/synthetic_replacement.cpp
@@ -43,9 +44,12 @@ set(OBS_WHISPERBLEEP_CORE_SOURCES
   src/model/model_catalog.cpp
   src/model/model_downloader.cpp
   src/model/model_manager.cpp
+  src/replacement/replacement_catalog.cpp
   src/runtime/backend_selector.cpp
   src/runtime/whisper_runtime.cpp
   src/platform/platform_info.cpp
+  src/ui/plugin_menu.cpp
+  src/updates/update_checker.cpp
 )
 
 add_library(obs_whisperbleep_core STATIC ${OBS_WHISPERBLEEP_CORE_SOURCES})
@@ -209,6 +213,32 @@ if(OBS_WHISPERBLEEP_BUILD_TESTS)
   target_link_libraries(obs_whisperbleep_m3_tests PRIVATE obs_whisperbleep_core)
   target_include_directories(obs_whisperbleep_m3_tests PRIVATE include)
   add_test(NAME m3 COMMAND obs_whisperbleep_m3_tests)
+
+  add_executable(obs_whisperbleep_m4_replacement_tests
+    tests/m4/test_m4_replacements.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m4_replacement_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m4_replacement_tests PRIVATE include)
+  add_test(NAME m4_replacements COMMAND obs_whisperbleep_m4_replacement_tests)
+
+  add_executable(obs_whisperbleep_m4_matching_tests
+    tests/m4/test_m4_matching.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m4_matching_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m4_matching_tests PRIVATE include)
+  add_test(NAME m4_matching COMMAND obs_whisperbleep_m4_matching_tests)
+
+  add_executable(obs_whisperbleep_m4_ui_tests tests/m4/test_m4_ui.cpp)
+  target_link_libraries(obs_whisperbleep_m4_ui_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m4_ui_tests PRIVATE include)
+  add_test(NAME m4_ui COMMAND obs_whisperbleep_m4_ui_tests)
+
+  add_executable(obs_whisperbleep_m4_update_tests
+    tests/m4/test_m4_updates.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m4_update_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m4_update_tests PRIVATE include)
+  add_test(NAME m4_updates COMMAND obs_whisperbleep_m4_update_tests)
 endif()
 
 install(TARGETS obs_whisperbleep_core
