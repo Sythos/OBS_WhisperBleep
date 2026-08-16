@@ -32,9 +32,10 @@ hardware and total system latency.
 
 => Project status
 
-This repository now contains the M0 architectural scaffold and the M1 native
-OBS integration boundary. The Whisper runtime, model catalog and downloads,
-GPU backends, packaging and multi-platform releases remain later milestones.
+This repository now contains the M0 architectural scaffold, the M1 native OBS
+integration boundary and the M2 deterministic audio pipeline. The Whisper
+runtime, model catalog and downloads, GPU backends, packaging and
+multi-platform releases remain later milestones.
 
 => M0 and M1: scaffold and OBS boundary
 
@@ -60,6 +61,24 @@ milestones.
 To enable the native module in a local OBS SDK build, configure
 `OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE=ON`, set `OBS_SDK_DIR`, and provide
 `OBS_LIB` when CMake cannot locate `libobs` automatically.
+
+=> M2 deterministic audio pipeline
+
+M2 keeps the realtime path bounded and predictable. Incoming frames enter a
+non-blocking single-producer/single-consumer queue; if it is full, the newest
+frame is dropped and counted rather than blocking OBS. A dedicated worker
+drains accepted frames and finishes draining them before shutdown joins the
+worker thread.
+
+The test pipeline uses simulated speech segments with sample-rate conversion
+and a configurable delay, then merges overlapping or touching censor intervals
+deterministically. A dependency-free synthetic beep is available for tests and
+as the initial replacement. The existing renderer loops short replacement
+audio, trims long replacement audio at the target interval, maps channels and
+can apply a configurable edge fade while preserving the input buffer length.
+
+M2 does not run Whisper or download models. Those runtime, catalog, checksum
+and cache responsibilities are reserved for M3.
 
 => Technologies
 

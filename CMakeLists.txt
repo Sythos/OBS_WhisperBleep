@@ -12,6 +12,7 @@ endif()
 project(OBSWhisperBleep VERSION "${OBS_WHISPERBLEEP_VERSION}" LANGUAGES CXX)
 
 include(GNUInstallDirs)
+find_package(Threads REQUIRED)
 
 option(OBS_WHISPERBLEEP_BUILD_TESTS "Build deterministic core and OBS-boundary tests" ON)
 option(OBS_WHISPERBLEEP_BUILD_PLUGIN_STUB "Build the non-OBS plugin stub" ON)
@@ -32,9 +33,13 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(OBS_WHISPERBLEEP_CORE_SOURCES
   src/core/audio_pipeline.cpp
+  src/core/audio_frame_queue.cpp
+  src/core/audio_processing_worker.cpp
   src/core/censor_scheduler.cpp
   src/core/phrase_matcher.cpp
   src/core/replacement_renderer.cpp
+  src/core/synthetic_replacement.cpp
+  src/core/timestamp_coordinator.cpp
   src/model/model_catalog.cpp
   src/model/model_downloader.cpp
   src/model/model_manager.cpp
@@ -45,6 +50,7 @@ set(OBS_WHISPERBLEEP_CORE_SOURCES
 
 add_library(obs_whisperbleep_core STATIC ${OBS_WHISPERBLEEP_CORE_SOURCES})
 target_include_directories(obs_whisperbleep_core PUBLIC include)
+target_link_libraries(obs_whisperbleep_core PUBLIC Threads::Threads)
 target_compile_features(obs_whisperbleep_core PUBLIC cxx_std_20)
 target_compile_definitions(obs_whisperbleep_core PRIVATE
   OBS_WHISPERBLEEP_VERSION="${PROJECT_VERSION}"
@@ -179,6 +185,11 @@ if(OBS_WHISPERBLEEP_BUILD_TESTS)
   target_link_libraries(obs_whisperbleep_obs_tests PRIVATE obs_whisperbleep_core)
   target_include_directories(obs_whisperbleep_obs_tests PRIVATE include)
   add_test(NAME obs COMMAND obs_whisperbleep_obs_tests)
+
+  add_executable(obs_whisperbleep_m2_tests tests/m2/test_m2.cpp)
+  target_link_libraries(obs_whisperbleep_m2_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m2_tests PRIVATE include)
+  add_test(NAME m2 COMMAND obs_whisperbleep_m2_tests)
 endif()
 
 install(TARGETS obs_whisperbleep_core

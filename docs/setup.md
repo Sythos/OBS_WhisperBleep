@@ -51,3 +51,27 @@ The M1 verification must cover filter registration, instance lifecycle,
 pass-through audio, initial Properties defaults, settings updates and settings
 persistence. Keep these tests independent from Whisper weights, network access,
 Python, PyTorch and CUDA; those dependencies belong to later milestones.
+
+=> M2 deterministic pipeline verification
+
+M2 keeps the verification path independent of OBS installation, Whisper model
+weights, network access, Python, PyTorch and CUDA. Build the same deterministic
+targets and run the complete test suite:
+
+```text
+cmake --preset debug
+cmake --build --preset debug
+ctest --test-dir build/debug --output-on-failure
+```
+
+The M2 tests cover the bounded queue's non-blocking full-queue policy, worker
+startup and drain-before-join shutdown, simulated speech timestamps with a
+configurable delay, deterministic merging of overlapping and touching
+intervals, synthetic beep generation, and replacement duration handling. The
+renderer must loop a replacement that is shorter than the censored interval,
+trim a replacement that is longer, and apply the configured edge fade without
+changing the output buffer length.
+
+M2 is intentionally a testable audio and scheduling boundary. Whisper
+inference, model downloads, checksum verification and model-cache management
+remain M3 work and must not be introduced as setup prerequisites here.

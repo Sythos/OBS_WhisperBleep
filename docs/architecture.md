@@ -53,9 +53,44 @@ destruction, safe repeated teardown, unchanged pass-through, initial property
 defaults, settings updates, and settings persistence across an instance
 recreation. Tests must not require Whisper weights, network access or CUDA.
 
+=> M2 deterministic audio pipeline
+
+M2 adds a bounded, dependency-free audio path that can be exercised before a
+Whisper runtime is connected. The OBS-facing producer submits frames to an
+`AudioFrameQueue`, implemented as a single-producer/single-consumer bounded
+queue. Submission never waits; when the queue is full it drops the newest
+frame and exposes a counter for diagnostics. This keeps back-pressure from
+blocking the realtime OBS callback.
+
+`AudioProcessingWorker` drains the queue on a dedicated worker thread and
+passes accepted frames to the processing callback. Its shutdown sequence
+requests a stop, drains frames already accepted by the queue, and only then
+joins the worker. The worker is therefore the place for future preprocessing
+and inference work; the callback remains free of model, disk and network
+operations.
+
+==> Simulated speech timestamps
+
+M2 uses the Whisper-independent `SpeechSegment` structure for deterministic
+tests. `TimestampCoordinator` converts segment start/end seconds to sample
+frames at a configured sample rate and applies a configurable non-negative
+delay. Invalid or non-finite segments are ignored. The resulting intervals
+are passed to `CensorScheduler`, which sorts them and merges overlapping or
+touching intervals deterministically.
+
+==> Replacement rendering
+
+`SyntheticReplacement` supplies a deterministic sine-wave beep without an
+external asset or runtime dependency. `ReplacementRenderer` applies the
+scheduled intervals while preserving the input buffer shape. It loops a short
+replacement across a longer interval, trims it at the interval boundary, and
+maps channels deterministically; an optional fade reduces replacement edges
+and can be configured in frames. This is the M2 duration and overlap policy.
+
 => Deferred milestones
 
 Whisper inference, model downloads and cache management, Python/PyTorch
-execution, and the CUDA backend remain later milestones. M1 establishes the
-OBS boundary and deterministic pass-through contract before those runtimes are
-connected.
+execution, and the CUDA backend remain later milestones. M2 deliberately uses
+simulated speech segments and a synthetic beep; it does not download or bundle
+Whisper models. M3 will connect the isolated runtime interface, verified model
+catalog and asynchronous model lifecycle.
