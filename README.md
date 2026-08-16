@@ -53,6 +53,18 @@ The M0 stub is not yet an operational OBS filter: it does not load the OBS API,
 run inference or download models. Those capabilities belong to later
 milestones.
 
+=> Technologies
+
+The project is built around the following technologies:
+
+- C++20 for the native OBS Studio plugin and real-time audio processing.
+- CMake for cross-platform configuration, builds and packaging.
+- [OpenAI Whisper](https://github.com/openai/whisper) for speech-recognition
+  models and the AI processing structure.
+- Python for model tooling and supporting automation.
+- [PyTorch](https://pytorch.org/) for CPU execution and GPU acceleration through
+  CUDA.
+
 => Inspiration and disclaimer
 
 OBS WhisperBleep is original code and is developed without forking CleanStream.
