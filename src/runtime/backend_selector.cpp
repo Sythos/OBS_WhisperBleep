@@ -185,11 +185,11 @@ BackendSelection select_backend(Backend requested,
       make_detail(Backend::cuda_13_2, cuda_available(capabilities),
                   default_reason(Backend::cuda_13_2,
                                  cuda_available(capabilities)))};
-  return select_backend(requested, probe_result);
+  return select_backend_with_probe(requested, probe_result);
 }
 
-BackendSelection select_backend(Backend requested,
-                                const BackendProbeResult& probe_result) {
+BackendSelection select_backend_with_probe(
+    Backend requested, const BackendProbeResult& probe_result) {
   BackendProbeResult effective_probe = probe_result;
   // Prefer concrete detail records over aggregate flags when both are
   // supplied. This keeps manually assembled probe results from claiming a

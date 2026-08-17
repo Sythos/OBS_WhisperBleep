@@ -39,8 +39,8 @@ WhisperRuntimeFactory::WhisperRuntimeFactory(RuntimeAdapterFactory factory)
 RuntimeFactoryResult WhisperRuntimeFactory::create(
     const RuntimeRequest& request) const {
   RuntimeFactoryResult result;
-  result.backend = select_backend(request.requested_backend,
-                                  request.backend_probe);
+  result.backend = select_backend_with_probe(request.requested_backend,
+                                             request.backend_probe);
 
   if (!result.backend.selected_available) {
     result.status = RuntimeStatus::unavailable;

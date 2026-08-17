@@ -108,7 +108,7 @@ int main() {
                  BackendProbeStatus::unavailable,
          "never exposes CUDA on macOS even when a probe overreports it");
   const auto mac_gpu_selection =
-      select_backend(Backend::cuda, mac_gpu_probe);
+      select_backend_with_probe(Backend::cuda, mac_gpu_probe);
   expect(mac_gpu_selection.used_fallback &&
              mac_gpu_selection.selected == Backend::cpu,
          "falls back to CPU for a CUDA request on macOS");
@@ -122,19 +122,21 @@ int main() {
                  "CPU is available"),
       capability(Backend::cuda, BackendProbeStatus::unavailable,
                  "CUDA evidence was revoked")};
-  const auto normalized = select_backend(Backend::auto_select, inconsistent);
+  const auto normalized =
+      select_backend_with_probe(Backend::auto_select, inconsistent);
   expect(normalized.selected == Backend::cpu &&
              normalized.selected_detail.status == BackendProbeStatus::available,
          "uses concrete capability evidence over inconsistent aggregate flags");
 
-  const auto automatic = select_backend(Backend::auto_select, cuda_probe);
+  const auto automatic =
+      select_backend_with_probe(Backend::auto_select, cuda_probe);
   expect(automatic.selected == Backend::cuda && automatic.selected_available &&
              automatic.selected_detail.status == BackendProbeStatus::available,
          "Auto selects the available CUDA backend with evidence");
   expect(automatic.requested_detail.status == BackendProbeStatus::not_probed,
          "Auto keeps concrete request evidence separate");
 
-  const auto cpu = select_backend(Backend::cpu, cuda_probe);
+  const auto cpu = select_backend_with_probe(Backend::cpu, cuda_probe);
   expect(cpu.selected == Backend::cpu && cpu.requested_available &&
              cpu.selected_detail.backend == Backend::cpu,
          "explicit CPU selection remains available");
@@ -149,7 +151,8 @@ int main() {
                                     : "CUDA is unavailable on this host");
       },
       "macos");
-  const auto cuda_fallback = select_backend(Backend::cuda, cpu_only_probe);
+  const auto cuda_fallback =
+      select_backend_with_probe(Backend::cuda, cpu_only_probe);
   expect(cuda_fallback.used_fallback &&
              cuda_fallback.selected == Backend::cpu &&
              cuda_fallback.requested_detail.status ==

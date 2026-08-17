@@ -68,7 +68,7 @@ struct BackendSelection {
 
 [[nodiscard]] BackendSelection select_backend(
     Backend requested, const BackendCapabilities& capabilities);
-[[nodiscard]] BackendSelection select_backend(
+[[nodiscard]] BackendSelection select_backend_with_probe(
     Backend requested, const BackendProbeResult& probe_result);
 [[nodiscard]] BackendProbeResult probe_backend_capabilities(
     const BackendCapabilityProbe& probe, std::string_view platform = {});
