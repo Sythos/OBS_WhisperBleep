@@ -54,14 +54,23 @@ investigate the problem clearly and safely.
 
 => Project status
 
-This repository now contains the M0 architectural scaffold, the M1 native OBS
-integration boundary, the M2 deterministic audio pipeline, the M3 model
-catalog/cache boundary, the M4 matching and configuration boundary and the M5
-backend/platform boundary. M5 defines capability-based backend selection, an
-absolute frame-timeline bridge, deterministic WAV asset loading and the first
-cross-platform packaging boundary. The real Whisper inference runtime,
-production CUDA integration, signed installers and automated release publishing
-remain later milestones.
+The project is still in pre-alpha. The remaining development milestones are:
+
+- real Whisper runtime integration, including model acquisition, transcription
+  and word-level timestamps;
+- complete native OBS/Qt configuration UI and the full update-check flow;
+- production CPU/GPU backend integration, runtime dependency bundling and
+  validation on supported systems;
+- verified royalty-free and redistributable replacement assets with complete
+  provenance metadata;
+- realtime hardening, stress testing, regression coverage and long-running
+  stability checks;
+- release packaging, checksums, signing or notarization where applicable and
+  tag-gated publication;
+- complete user, setup and support documentation.
+
+The current codebase provides early architectural boundaries and deterministic
+test coverage, but it does not yet claim public-release quality.
 
 => M0 and M1: scaffold and OBS boundary
 
