@@ -34,10 +34,12 @@ hardware and total system latency.
 
 This repository now contains the M0 architectural scaffold, the M1 native OBS
 integration boundary, the M2 deterministic audio pipeline, the M3 model
-catalog/cache boundary and the M4 matching and configuration boundary. The M4
-work defines configurable matching, replacement selection and the Properties
-navigation contract. Real Whisper inference, GPU validation, packaging and
-multi-platform releases remain later milestones.
+catalog/cache boundary, the M4 matching and configuration boundary and the M5
+backend/platform boundary. M5 defines capability-based backend selection, an
+absolute frame-timeline bridge, deterministic WAV asset loading and the first
+cross-platform packaging boundary. The real Whisper inference runtime,
+production CUDA integration, signed installers and automated release publishing
+remain later milestones.
 
 => M0 and M1: scaffold and OBS boundary
 
@@ -125,6 +127,45 @@ with the latest GitHub release at
 available, the plugin shows a popup with the release information and offers to
 open the releases page in the external browser. It never silently downloads or
 installs an update, and update checks do not run in the realtime audio path.
+
+=> M5 backend, timeline, assets and packaging boundary
+
+The backend boundary exposes `Auto`, `CPU` and `CUDA 13.2` as capability-driven
+choices. `CPU` remains the portable fallback. `Auto` may select CUDA only when
+the host reports a validated CUDA 13.2 capability; an unavailable requested
+backend must produce a readable state and fall back without blocking OBS. CUDA
+is not available on macOS, so `Auto` must use the validated non-CUDA backend
+there.
+
+When a GPU backend is selected, the graphics card's VRAM must contain both the
+Whisper model and the game or application being streamed by OBS. Users should
+avoid models that are too large for the remaining VRAM. When a reasonably
+recent mid-range CPU is available, selecting `CPU` is recommended to leave the
+VRAM available for the game or application.
+
+The timeline bridge keeps captured audio, transcript segments and replacement
+intervals in one absolute frame domain. It converts validated chunk-relative
+results before scheduling, while the timestamp coordinator applies the
+configured delay exactly once, and it rejects invalid or unsafe values. M5
+does not claim word-level timestamps or a real Whisper inference engine; those
+require the runtime milestone.
+
+Replacement audio is loaded outside the OBS realtime callback. The deterministic
+asset boundary is based on validated WAV data and must reject malformed,
+unsupported or unreadable files while preserving pass-through audio. Any audio
+asset downloaded from the Internet must come from a verifiable source that is
+100% royalty-free and explicitly permits use, modification and redistribution.
+The source URL, author, license reference, download date and checksum must be
+recorded before an asset is included in `assets/`; the plugin must never fetch
+an unverified asset automatically.
+
+M5 establishes CPack staging for Windows x64, Linux x86_64 and macOS universal
+package layouts, including documentation and applicable license notices. A
+staged package is not yet a finished public release: model weights, model
+caches, credentials, unverified audio, CUDA redistributables and runtime
+dependencies are not bundled by default. macOS signing/notarization, complete
+Whisper runtime packaging, and tag-gated binary publication remain part of the
+next release milestone.
 
 => Technologies
 

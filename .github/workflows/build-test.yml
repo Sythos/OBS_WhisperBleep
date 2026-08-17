@@ -130,6 +130,16 @@ jobs:
         shell: bash
         run: cmake --install build --prefix stage
 
+      - name: Validate CPack Windows x64 package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cpack --config build/CPackConfig.cmake -C Release
+
+      - name: Validate CPack Unix package
+        if: runner.os != 'Windows'
+        shell: bash
+        run: cpack --config build/CPackConfig.cmake
+
       - name: Package Windows x64
         if: runner.os == 'Windows'
         shell: pwsh

@@ -106,3 +106,52 @@ The general or about section must expose `Check Updates`; the action compares
 the canonical installed version with the latest GitHub release, reports a newer
 version in a popup and offers an explicit external-browser link. It must never
 silently download or install an update or block the OBS audio callback.
+
+=> M5 backend, timeline and asset verification
+
+M5 keeps backend selection capability-driven and testable without requiring a
+Whisper model in the repository. The supported choices are:
+
+- `CPU`, the portable fallback;
+- `Auto`, which selects the best backend reported as available by the host;
+- `CUDA 13.2`, only when the build, driver, runtime and model integration have
+  all reported a validated capability on Windows or Linux.
+
+An unavailable explicit backend must expose a readable state and fall back to
+CPU without blocking OBS. CUDA is not available on macOS; `Auto` must choose a
+validated non-CUDA backend there. A GPU selection must leave enough VRAM for
+both the Whisper model and the game or application being streamed. Prefer a
+smaller model, or use `CPU` when a reasonably recent mid-range CPU is available
+so that VRAM remains available to the streamed application.
+
+The M5 timeline bridge uses one absolute audio-frame domain across capture,
+transcript segments and replacement intervals. The timestamp coordinator owns
+the configured delay and must apply it exactly once before scheduling. Tests
+must cover conversion from validated timestamps, delay application,
+invalid-value rejection, discontinuity generations and boundary rejection. The
+bridge must not claim word-level timing until the real Whisper runtime supplies
+it, and it must remain outside the OBS realtime callback.
+
+Replacement assets are loaded and decoded on a worker before they are used by
+the realtime renderer. The deterministic asset path accepts validated WAV data
+and must reject malformed, unsupported or unreadable files while preserving
+pass-through audio. No callback may download an asset or read a file. If an
+asset is sourced from the Internet, its source, author, license text or URL,
+download date and checksum must be recorded; it must be 100% royalty-free and
+explicitly usable and redistributable, including in the relevant release
+packages. Unverified audio must not enter `assets/` or a package.
+
+M5 packaging checks cover the CPack staging layout for Windows x64, Linux
+x86_64 and macOS universal targets. The staging check must confirm that model
+weights, model caches, credentials, unverified audio and undeclared runtime
+dependencies are absent. A successful staging check is not yet a finished
+installer or public release: OBS SDK/runtime bundling, CUDA redistribution,
+macOS signing/notarization and tag-gated binary publication remain deferred.
+
+The local dependency-free verification remains:
+
+```text
+cmake --preset debug
+cmake --build --preset debug
+ctest --test-dir build/debug --output-on-failure
+```

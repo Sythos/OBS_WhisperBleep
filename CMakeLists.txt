@@ -36,6 +36,7 @@ set(OBS_WHISPERBLEEP_CORE_SOURCES
   src/core/audio_frame_queue.cpp
   src/core/audio_processing_worker.cpp
   src/core/censor_scheduler.cpp
+  src/core/audio_timeline.cpp
   src/core/match_planner.cpp
   src/core/phrase_matcher.cpp
   src/core/replacement_renderer.cpp
@@ -45,6 +46,7 @@ set(OBS_WHISPERBLEEP_CORE_SOURCES
   src/model/model_downloader.cpp
   src/model/model_manager.cpp
   src/replacement/replacement_catalog.cpp
+  src/replacement/wav_audio_loader.cpp
   src/runtime/backend_selector.cpp
   src/runtime/whisper_runtime.cpp
   src/platform/platform_info.cpp
@@ -239,6 +241,27 @@ if(OBS_WHISPERBLEEP_BUILD_TESTS)
   target_link_libraries(obs_whisperbleep_m4_update_tests PRIVATE obs_whisperbleep_core)
   target_include_directories(obs_whisperbleep_m4_update_tests PRIVATE include)
   add_test(NAME m4_updates COMMAND obs_whisperbleep_m4_update_tests)
+
+  add_executable(obs_whisperbleep_m5_runtime_tests
+    tests/m5/test_m5_runtime.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m5_runtime_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m5_runtime_tests PRIVATE include)
+  add_test(NAME m5_runtime COMMAND obs_whisperbleep_m5_runtime_tests)
+
+  add_executable(obs_whisperbleep_m5_audio_loader_tests
+    tests/m5/test_m5_audio_loader.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m5_audio_loader_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m5_audio_loader_tests PRIVATE include)
+  add_test(NAME m5_audio_loader COMMAND obs_whisperbleep_m5_audio_loader_tests)
+
+  add_executable(obs_whisperbleep_m5_timeline_tests
+    tests/m5/test_m5_timeline.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m5_timeline_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m5_timeline_tests PRIVATE include)
+  add_test(NAME m5_timeline COMMAND obs_whisperbleep_m5_timeline_tests)
 endif()
 
 install(TARGETS obs_whisperbleep_core
@@ -262,6 +285,7 @@ endif()
 install(DIRECTORY include/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 install(FILES README.md LICENSE NOTICE VERSION DESTINATION .)
 install(DIRECTORY docs/ DESTINATION docs)
+install(DIRECTORY assets/ DESTINATION assets)
 
 set(CPACK_PACKAGE_NAME "OBS-WhisperBleep")
 set(CPACK_PACKAGE_VENDOR "Sythos")

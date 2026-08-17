@@ -150,8 +150,49 @@ found, the UI presents a popup with the release information and an explicit
 external-browser action. The plugin never silently installs an update, and the
 check is performed away from the realtime audio path.
 
+=> M5 backend, timeline and asset boundary
+
+M5 keeps backend selection explicit and capability-driven. `CPU` is the
+portable fallback, `Auto` selects the best validated capability reported by
+the host, and `CUDA 13.2` is selectable only when the Windows or Linux build,
+driver, runtime and model integration report that capability. An unavailable
+request falls back to CPU with a readable state rather than blocking OBS.
+macOS is a non-CUDA target for this phase, so `Auto` must choose a validated
+non-CUDA backend there.
+
+The Models pane must explain the GPU memory trade-off: VRAM has to contain both
+the Whisper model and the game or application that OBS is streaming. The UI
+must discourage models that are too large for the remaining VRAM and should
+recommend `CPU` when a reasonably recent mid-range CPU can perform the work,
+leaving VRAM available to the streamed application.
+
+The timeline bridge carries captured frames, transcript segments and
+replacement intervals in one absolute frame domain. It converts validated
+chunk-relative results before scheduling. The timestamp coordinator owns the
+configured delay and applies it exactly once; the bridge handles chunk anchors,
+discontinuity generations, unsafe boundaries and invalid values. It does not
+invent word-level timestamps; that precision belongs to the real Whisper
+runtime.
+
+Replacement audio is loaded and decoded on a worker before rendering. The M5
+deterministic asset boundary validates WAV input and rejects malformed,
+unsupported or unreadable files while retaining pass-through behavior. No file
+I/O or network access is allowed in the OBS realtime callback. Audio downloaded
+from the Internet may enter the repository or a package only when its source,
+author, license reference, download date and checksum are recorded and the
+license is explicitly 100% royalty-free and redistributable.
+
+M5 also defines CPack staging for Windows x64, Linux x86_64 and macOS universal
+layouts. Staging contains code, documentation, license notices and verified
+assets only; it excludes model weights, user caches, credentials, unverified
+audio and undeclared runtime dependencies. Staging is not a release: runtime
+bundling, CUDA redistribution, macOS signing/notarization and tag-gated
+publication remain open.
+
 => Deferred milestones
 
-Whisper inference, Python/PyTorch execution and the CUDA backend remain later
-milestones. M3 deliberately keeps the runtime isolated and does not download or
-bundle Whisper models in the repository.
+The real Whisper inference runtime and Python/PyTorch integration remain later
+milestones. M5 validates the backend and platform boundary but does not claim
+production CUDA execution, model-weight redistribution or a finished installer.
+The repository continues to keep model weights outside Git and outside release
+staging.
