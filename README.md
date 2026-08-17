@@ -8,6 +8,10 @@ SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](https://isocpp.org/) [![GitHub release](https://img.shields.io/github/v/release/Sythos/OBS_WhisperBleep?display_name=tag&sort=semver)](https://github.com/Sythos/OBS_WhisperBleep/releases/latest) [![Last commit](https://img.shields.io/github/last-commit/Sythos/OBS_WhisperBleep)](https://github.com/Sythos/OBS_WhisperBleep/commits/main/) [![Open issues](https://img.shields.io/github/issues/Sythos/OBS_WhisperBleep)](https://github.com/Sythos/OBS_WhisperBleep/issues)<br>
 [![License](https://img.shields.io/github/license/Sythos/OBS_WhisperBleep)](https://github.com/Sythos/OBS_WhisperBleep/blob/main/LICENSE) [![Git](https://img.shields.io/badge/Git-Repository-F05032?logo=git&logoColor=white)](https://git-scm.com/) [![GitHub](https://img.shields.io/badge/GitHub-Sythos%2FOBS_WhisperBleep-181717?logo=github&logoColor=white)](https://github.com/Sythos/OBS_WhisperBleep)
 
+> **Pre-alpha notice:** OBS WhisperBleep is currently in pre-alpha. Expect
+> incomplete features, breaking changes and possible malfunctions. Do not use
+> it in production or live broadcasts without thorough testing.
+
 OBS WhisperBleep is a native OBS Studio audio filter designed to censor
 configured words and phrases in near real time.
 
@@ -29,6 +33,24 @@ is three consecutive audio delays of **500 msec (0.5 seconds) each**, for a
 total delay of approximately **1.5 seconds**. Verify the final value against
 the actual scene and OBS chain: the required delay depends on the Whisper model,
 hardware and total system latency.
+
+=> Contributors and support
+
+Bug reports, malfunctions and other problems should be reported through a
+GitHub [Issue](https://github.com/Sythos/OBS_WhisperBleep/issues). Please write
+in English whenever possible; if needed, using Google Translate is perfectly
+fine. Include as much detail as possible, especially:
+
+- the plugin version;
+- the OBS Studio version in use;
+- the selected Whisper model;
+- the operating system, relevant hardware and selected backend;
+- exact step-by-step instructions to reproduce the problem;
+- the expected result and what happened instead;
+- relevant logs, screenshots or other supporting information.
+
+Without sufficient detail, it may not be possible to understand, reproduce and
+investigate the problem clearly and safely.
 
 => Project status
 
