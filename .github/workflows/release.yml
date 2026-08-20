@@ -79,7 +79,7 @@ jobs:
       contents: read
 
   publish:
-    name: Create draft release
+    name: Publish latest release
     needs:
       - validate
       - build
@@ -177,7 +177,7 @@ jobs:
             sha256sum *.exe *.tar.gz *.deb > SHA256SUMS
           )
 
-      - name: Create draft GitHub release
+      - name: Publish latest GitHub release with generated notes
         shell: bash
         run: |
           set -euo pipefail
@@ -187,8 +187,9 @@ jobs:
           fi
 
           gh release create "$TAG" \
-            --draft \
             --verify-tag \
+            --latest \
+            --generate-notes \
             --title "OBS WhisperBleep ${TAG}" \
-            --notes "Multi-platform OBS WhisperBleep ${TAG} build. The Linux DEB targets Ubuntu 26.04 LTS amd64; Windows and macOS payloads are unsigned. Debian 13/RPM support remains a later evaluation, and Windows signing has a separate SignPath handoff." \
+            --notes "Installer release ${TAG}. Linux DEB targets Ubuntu 26.04 LTS amd64; Windows and macOS payloads are unsigned. Packages are the current portable core/plugin-stub boundary and do not bundle Whisper model weights. Use as-is." \
             release-assets/*
