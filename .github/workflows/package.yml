@@ -1,0 +1,401 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
+
+name: Package unsigned artifacts
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Ubuntu 26.04 LTS x86_64 packages
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Install Ubuntu DEB packaging tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends dpkg-dev
+
+      - name: Configure stub build
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DOBS_WHISPERBLEEP_BUILD_TESTS=ON \
+            -DOBS_WHISPERBLEEP_BUILD_PLUGIN_STUB=ON \
+            -DOBS_WHISPERBLEEP_BUILD_NATIVE_MODULE=OFF \
+            -DOBS_WHISPERBLEEP_ENABLE_CUDA=OFF \
+            -DWHISPER_RUNTIME=stub
+
+      - name: Build and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+
+      - name: Install staging tree
+        shell: bash
+        run: cmake --install build --prefix stage
+
+      - name: Scan staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          scan_listing() {
+            local listing="$1"
+            local unsafe
+            unsafe="$(printf '%s\n' "$listing" | sed 's#^\./##' | grep -E -i '(^|/)(model-cache|models|weights|__pycache__)(/|$)|\.(bin|gguf|onnx|pt|pth|ckpt|pkl|pickle|safetensors|pem|p12|pfx|key)$|(^|/)(\.env|id_rsa|id_ed25519)$|(^|/)[^/]*(credentials|secret|token|password)[^/]*$' || true)"
+            if [[ -n "$unsafe" ]]; then
+              echo "Forbidden package path:" >&2
+              echo "$unsafe" >&2
+              exit 1
+            fi
+          }
+          if find stage -type l -print -quit | grep -q .; then
+            echo "Symlinks are not allowed in unsigned packages." >&2
+            exit 1
+          fi
+          scan_listing "$(find stage -mindepth 1 -printf '%P\n')"
+
+      - name: Build TGZ and Ubuntu DEB packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          mkdir package-out
+          cpack --config build/CPackConfig.cmake -G TGZ -B package-out
+          cpack --config build/CPackConfig.cmake -G DEB -B package-out
+          packages=(package-out/*.tar.gz package-out/*.deb)
+          for package in "${packages[@]}"; do
+            [[ -s "$package" ]] || { echo "Missing or empty package: $package" >&2; exit 1; }
+          done
+          [[ "$(find package-out -maxdepth 1 -type f -name '*.tar.gz' | wc -l)" -eq 1 ]]
+          [[ "$(find package-out -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 1 ]]
+          mv package-out/*.tar.gz "package-out/OBS-WhisperBleep-${version}-Linux-x86_64.tar.gz"
+          mv package-out/*.deb "package-out/OBS-WhisperBleep-${version}-Linux-x86_64.deb"
+
+      - name: Scan generated packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          scan_listing() {
+            local listing="$1"
+            local unsafe
+            unsafe="$(printf '%s\n' "$listing" | sed 's#^\./##' | grep -E -i '(^|/)(model-cache|models|weights|__pycache__)(/|$)|\.(bin|gguf|onnx|pt|pth|ckpt|pkl|pickle|safetensors|pem|p12|pfx|key)$|(^|/)(\.env|id_rsa|id_ed25519)$|(^|/)[^/]*(credentials|secret|token|password)[^/]*$' || true)"
+            if [[ -n "$unsafe" ]]; then
+              echo "Forbidden package path:" >&2
+              echo "$unsafe" >&2
+              exit 1
+            fi
+          }
+          version="$(tr -d '[:space:]' < VERSION)"
+          packages=(
+            "package-out/OBS-WhisperBleep-${version}-Linux-x86_64.tar.gz"
+            "package-out/OBS-WhisperBleep-${version}-Linux-x86_64.deb"
+          )
+          for package in "${packages[@]}"; do
+            [[ -s "$package" ]] || { echo "Missing or empty package: $package" >&2; exit 1; }
+          done
+          scan_listing "$(tar -tzf "${packages[0]}")"
+          deb="${packages[1]}"
+          [[ "$(dpkg-deb --field "$deb" Architecture)" == "amd64" ]]
+          [[ "$(dpkg-deb --field "$deb" Version) == "${version}" ]]
+          [[ "$(dpkg-deb --field "$deb" Package)" == "obs-whisperbleep" ]]
+          [[ "$(dpkg-deb --field "$deb" Maintainer)" == "Sythos" ]]
+          [[ "$(dpkg-deb --field "$deb" Section)" == "sound" ]]
+          [[ "$(dpkg-deb --field "$deb" Homepage)" == "https://www.sythos.net" ]]
+          scan_listing "$(dpkg-deb --fsys-tarfile "$deb" | tar -t)"
+
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: OBS-WhisperBleep-Linux-x86_64-unsigned
+          path: |
+            package-out/OBS-WhisperBleep-*-Linux-x86_64.tar.gz
+            package-out/OBS-WhisperBleep-*-Linux-x86_64.deb
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    name: Windows x64 NSIS installer
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Install NSIS when unavailable
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            choco install nsis --yes --no-progress
+          }
+          $nsisCandidates = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'),
+            (Join-Path $env:ProgramFiles 'NSIS\makensis.exe')
+          )
+          $nsis = $nsisCandidates |
+            Where-Object { Test-Path -LiteralPath $_ } |
+            Select-Object -First 1
+          if ($nsis) {
+            $nsisDirectory = Split-Path -Parent $nsis
+            $env:Path = "$nsisDirectory;$env:Path"
+            $nsisDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            throw "NSIS installation did not provide makensis."
+          }
+
+      - name: Install 7-Zip when unavailable
+        shell: pwsh
+        run: |
+          if (-not (Get-Command 7z -ErrorAction SilentlyContinue) -and
+              -not (Test-Path -LiteralPath "$env:ProgramFiles\7-Zip\7z.exe")) {
+            choco install 7zip --yes --no-progress
+          }
+          $sevenZipCandidates = @(
+            (Join-Path $env:ProgramFiles '7-Zip\7z.exe'),
+            (Join-Path ${env:ProgramFiles(x86)} '7-Zip\7z.exe')
+          )
+          $sevenZip = $sevenZipCandidates |
+            Where-Object { Test-Path -LiteralPath $_ } |
+            Select-Object -First 1
+          if ($sevenZip) {
+            $sevenZipDirectory = Split-Path -Parent $sevenZip
+            $env:Path = "$sevenZipDirectory;$env:Path"
+            $sevenZipDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+          if (-not (Get-Command 7z -ErrorAction SilentlyContinue)) {
+            throw "7-Zip installation did not provide 7z."
+          }
+
+      - name: Configure stub build
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "VERSION must contain MAJOR.MINOR.PATCH"
+          }
+          cmake -S . -B build -G 'Visual Studio 17 2022' -A x64 `
+            -DOBS_WHISPERBLEEP_BUILD_TESTS=ON `
+            -DOBS_WHISPERBLEEP_BUILD_PLUGIN_STUB=ON `
+            -DOBS_WHISPERBLEEP_BUILD_NATIVE_MODULE=OFF `
+            -DOBS_WHISPERBLEEP_ENABLE_CUDA=OFF `
+            -DWHISPER_RUNTIME=stub
+
+      - name: Build and test
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel
+          ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Install staging tree
+        shell: pwsh
+        run: cmake --install build --config Release --prefix stage
+
+      - name: Scan staging tree
+        shell: pwsh
+        run: |
+          $forbiddenExtensions = @(
+            '.bin', '.gguf', '.onnx', '.pt', '.pth', '.ckpt', '.pkl',
+            '.pickle', '.safetensors', '.pem', '.p12', '.pfx', '.key'
+          )
+          $items = Get-ChildItem -Path stage -Force -Recurse
+          $forbidden = $items | Where-Object {
+            ($forbiddenExtensions -contains $_.Extension.ToLowerInvariant()) -or
+            ($_.FullName -match '\\(model-cache|models|weights|__pycache__)(\\|$)') -or
+            ($_.Name -match '^(\.env|id_rsa|id_ed25519)$|credentials|secret|token|password')
+          }
+          if ($forbidden) {
+            $forbidden | ForEach-Object { Write-Error "Forbidden package path: $($_.FullName)" }
+            exit 1
+          }
+          $links = $items | Where-Object { $_.LinkType }
+          if ($links) {
+            $links | ForEach-Object { Write-Error "Symlinks are not allowed in unsigned packages: $($_.FullName)" }
+            exit 1
+          }
+
+      - name: Build unsigned NSIS installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path package-out | Out-Null
+          & .\installer\windows\build-installer.ps1 -StageDirectory stage -OutputDirectory package-out
+          if ($LASTEXITCODE -ne 0) {
+            throw "The checked-in NSIS installer script failed."
+          }
+          $installer = @(Get-ChildItem -Path package-out -File -Filter '*.exe')
+          if ($installer.Count -ne 1 -or $installer[0].Length -le 0) {
+            throw "Expected exactly one non-empty NSIS installer."
+          }
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer[0].FullName
+          if ($signature.Status -ne 'NotSigned') {
+            throw "The packaging lane must produce an unsigned installer; status was $($signature.Status)."
+          }
+          $version = (Get-Content VERSION -Raw).Trim()
+          $expected = "OBS-WhisperBleep-$version-Windows-x64-unsigned.exe"
+          if ($installer[0].Name -ne $expected) {
+            throw "The installer name did not match the expected unsigned payload: $($installer[0].Name)"
+          }
+
+      - name: Scan NSIS installer manifest
+        shell: pwsh
+        run: |
+          $sevenZip = Get-Command 7z -ErrorAction SilentlyContinue
+          if (-not $sevenZip -and (Test-Path -LiteralPath "$env:ProgramFiles\7-Zip\7z.exe")) {
+            $sevenZip = Get-Item -LiteralPath "$env:ProgramFiles\7-Zip\7z.exe"
+          }
+          if (-not $sevenZip) {
+            throw "7-Zip is required to inspect the NSIS installer manifest."
+          }
+          $sevenZipPath = if ($sevenZip.PSObject.Properties.Name -contains 'Source') {
+            $sevenZip.Source
+          } else {
+            $sevenZip.FullName
+          }
+          $installer = @(Get-ChildItem -Path package-out -File -Filter '*.exe')
+          if ($installer.Count -ne 1) {
+            throw "Expected exactly one NSIS installer to inspect."
+          }
+          $listing = & $sevenZipPath l -slt $installer.FullName
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to inspect the NSIS installer manifest."
+          }
+          $unsafe = $listing | Where-Object {
+            $_ -match '^Path = .*(\\|/)(model-cache|models|weights|__pycache__)(\\|/|$)' -or
+            $_ -match '^Path = .*(\\|/)\.\.(\\|/|$)' -or
+            $_ -match '^Path = .*\.(bin|gguf|onnx|pt|pth|ckpt|pkl|pickle|safetensors|pem|p12|pfx|key)$' -or
+            $_ -match '^Path = .*(credentials|secret|token|password|\.env|id_rsa|id_ed25519)'
+          }
+          if ($unsafe) {
+            $unsafe | ForEach-Object { Write-Error "Forbidden installer entry: $_" }
+            exit 1
+          }
+
+      - name: Upload unsigned NSIS installer
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: OBS-WhisperBleep-Windows-x64-unsigned
+          path: package-out/OBS-WhisperBleep-*-Windows-x64-unsigned.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  macos:
+    name: macOS universal archive
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Configure universal stub build
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES='x86_64;arm64' \
+            -DOBS_WHISPERBLEEP_BUILD_TESTS=ON \
+            -DOBS_WHISPERBLEEP_BUILD_PLUGIN_STUB=ON \
+            -DOBS_WHISPERBLEEP_BUILD_NATIVE_MODULE=OFF \
+            -DOBS_WHISPERBLEEP_ENABLE_CUDA=OFF \
+            -DWHISPER_RUNTIME=stub
+
+      - name: Build and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+
+      - name: Install staging tree
+        shell: bash
+        run: cmake --install build --prefix stage
+
+      - name: Validate staging tree and universal binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          scan_listing() {
+            local listing="$1"
+            local unsafe
+            unsafe="$(printf '%s\n' "$listing" | sed 's#^\./##' | grep -E -i '(^|/)(model-cache|models|weights|__pycache__)(/|$)|\.(bin|gguf|onnx|pt|pth|ckpt|pkl|pickle|safetensors|pem|p12|pfx|key)$|(^|/)(\.env|id_rsa|id_ed25519)$|(^|/)[^/]*(credentials|secret|token|password)[^/]*$' || true)"
+            if [[ -n "$unsafe" ]]; then
+              echo "Forbidden package path:" >&2
+              echo "$unsafe" >&2
+              exit 1
+            fi
+          }
+          if find stage -type l -print -quit | grep -q .; then
+            echo "Symlinks are not allowed in unsigned packages." >&2
+            exit 1
+          fi
+          scan_listing "$(find stage -mindepth 1 -printf '%P\n')"
+          found_macho=false
+          while IFS= read -r -d '' binary; do
+            if file "$binary" | grep -q 'Mach-O'; then
+              found_macho=true
+              architectures="$(lipo -archs "$binary")"
+              [[ "$architectures" == *x86_64* && "$architectures" == *arm64* ]] || {
+                echo "Expected a universal Mach-O binary: $binary ($architectures)" >&2
+                exit 1
+              }
+            fi
+          done < <(find stage -type f -print0)
+          [[ "$found_macho" == true ]] || {
+            echo "No Mach-O binary was installed." >&2
+            exit 1
+          }
+
+      - name: Create unsigned universal archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          archive="OBS-WhisperBleep-${version}-macOS-universal.tar.gz"
+          tar -C stage -czf "$archive" .
+          test -s "$archive"
+          listing="$(tar -tzf "$archive")"
+          unsafe="$(printf '%s\n' "$listing" | sed 's#^\./##' | grep -E -i '(^|/)(model-cache|models|weights|__pycache__)(/|$)|\.(bin|gguf|onnx|pt|pth|ckpt|pkl|pickle|safetensors|pem|p12|pfx|key)$|(^|/)(\.env|id_rsa|id_ed25519)$|(^|/)[^/]*(credentials|secret|token|password)[^/]*$|(^|/)\.\.(/|$)' || true)"
+          if [[ -n "$unsafe" ]]; then
+            echo "Forbidden archive path:" >&2
+            echo "$unsafe" >&2
+            exit 1
+          fi
+
+      - name: Upload unsigned universal archive
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: OBS-WhisperBleep-macOS-universal-unsigned
+          path: OBS-WhisperBleep-*-macOS-universal.tar.gz
+          if-no-files-found: error
+          retention-days: 7

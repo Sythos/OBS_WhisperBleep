@@ -199,12 +199,21 @@ recorded before an asset is included in `assets/`; the plugin must never fetch
 an unverified asset automatically.
 
 M5 establishes CPack staging for Windows x64, Linux x86_64 and macOS universal
-package layouts, including documentation and applicable license notices. A
-staged package is not yet a finished public release: model weights, model
+package layouts, including documentation and applicable license notices. The
+release-artifact milestone expects an unsigned Windows x64 NSIS installer,
+a Linux x86_64 TGZ archive, an amd64 DEB targeted at Ubuntu 26.04 LTS and an
+unsigned macOS universal binary archive. CI must accept exactly those four
+versioned payloads, validate their contents and publish checksums; Debian 13
+and RPM support remain a later evaluation, while a SignPath signing handoff is
+a separate step.
+
+A staged package is not yet a finished public release: model weights, model
 caches, credentials, unverified audio, CUDA redistributables and runtime
-dependencies are not bundled by default. macOS signing/notarization, complete
-Whisper runtime packaging, and tag-gated binary publication remain part of the
-next release milestone.
+dependencies are not bundled by default. The default CI builds the portable
+core and plugin stub; the native OBS module still requires an explicit OBS SDK
+and `libobs`, and M7 processed output is not yet wired into its callback.
+macOS signing/notarization, complete Whisper runtime packaging and tag-gated
+publication remain part of the next release milestone.
 
 => M7 optional OpenAI Whisper vertical slice
 
@@ -253,3 +262,15 @@ email, repository messages or social media.
 This project claim to NOT incorporate CleanStream code, commits, assets or model weights.
 Any third-party component will be added only after its origin,
 license and attribution have been verified.
+
+==> Binary availability and warranty
+
+Binaries will be made available as soon as possible. The intended fully
+operational targets are Linux x86_64 and Windows x64; the current pre-alpha
+packages still expose the portable core/plugin-stub boundary described above.
+A macOS universal binary may also be provided, but it may be unsigned: Apple
+signing and notarization currently require costs, membership and administrative
+steps that are not sustainable at this stage of development.
+
+Everything is provided `as is`, without warranty of any kind. Please test it
+carefully before relying on it in a live or production environment.

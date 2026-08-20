@@ -380,6 +380,10 @@ and macOS universal (`macos-14`). CI must remain deterministic and must not
 require OBS SDK installation, CUDA, network access or Whisper weights for the
 core test path.
 
+The separate packaging workflow uses the `ubuntu-26.04` public-preview runner
+only for the Ubuntu-targeted amd64 DEB lane. Its preview status is an explicit
+CI dependency and does not change the stable build/test baseline above.
+
 Required checks:
 
 | Check | Required evidence | Blocking rule |
@@ -392,13 +396,16 @@ Required checks:
 | Realtime safety | Queue/back-pressure, callback boundary and stress/regression tests | Any callback I/O, blocking wait, drop corruption or unsafe shutdown blocks merge |
 | Latency | Versioned measurement artifact with workload, p50/p95/max and budget decision | Missing evidence, unexplained over-budget result or silent target change blocks merge |
 | Debug logging | Cross-platform path/sequence/no-overwrite and redaction tests | Any overwrite, default-on file or callback logging blocks merge |
-| Package scan | CPack staging/source archive scan for weights, caches, credentials and unverified assets | Any forbidden artifact blocks merge |
+| Package scan | CPack staging/source archive scan plus the exact four-payload release set: unsigned Windows NSIS, Linux TGZ/Ubuntu DEB and unsigned macOS universal archive | Any forbidden, missing or additional payload blocks merge |
 
 The CI workflow should upload only useful, non-sensitive evidence (test output,
 manifest validation and sanitized latency summaries). Never upload model
-weights, user logs, credentials, raw audio or unredacted transcripts. Release
-packaging remains tag-gated and must consume only artifacts from a fully green
-matrix.
+weights, user logs, credentials, raw audio or unredacted transcripts. A
+tag-gated release must consume exactly the versioned Windows NSIS installer,
+the Linux TGZ and Ubuntu-targeted DEB, and the macOS universal archive from a
+fully green matrix, plus a `SHA256SUMS` file created during release assembly.
+Those artifacts are unsigned; SignPath is a later handoff and not evidence that
+the current CI has signed a payload. Debian 13 and RPM support are deferred.
 
 => 9. Independent review protocol
 
@@ -471,6 +478,15 @@ output with explicit host process lifecycle, safe back-pressure/status handling
 and measured end-to-end latency evidence. It must also confirm that the
 optional Python/OpenAI Whisper dependencies are not silently bundled or
 required by the portable build.
+
+The associated packaging milestone expects one unsigned Windows x64 NSIS
+installer, one Linux x86_64 TGZ archive, one Ubuntu 26.04 LTS amd64 DEB and one
+unsigned macOS universal binary archive for the same version. Until the native
+adapter is connected, the default CI package is limited to the portable
+core/plugin stub boundary; it is not evidence of a complete native OBS Whisper
+runtime. Debian 13 and RPM support are deferred to a later compatibility
+milestone. A separate SignPath handoff follows successful package validation
+and does not belong to the portable build or M7 runtime boundary.
 
 => 11. Acceptance checklist
 

@@ -73,7 +73,7 @@ jobs:
   build:
     name: Build release packages
     needs: validate
-    uses: ./.github/workflows/build-test.yml
+    uses: ./.github/workflows/package.yml
     permissions:
       contents: read
 
@@ -103,13 +103,21 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Install package inspection tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends p7zip-full
+
       - name: Verify release assets and create checksums
         shell: bash
         run: |
           set -euo pipefail
           expected=(
-            "release-assets/OBS-WhisperBleep-${VERSION}-Windows-x64.zip"
+            "release-assets/OBS-WhisperBleep-${VERSION}-Windows-x64-unsigned.exe"
             "release-assets/OBS-WhisperBleep-${VERSION}-Linux-x86_64.tar.gz"
+            "release-assets/OBS-WhisperBleep-${VERSION}-Linux-x86_64.deb"
             "release-assets/OBS-WhisperBleep-${VERSION}-macOS-universal.tar.gz"
           )
           for asset in "${expected[@]}"; do
@@ -117,7 +125,7 @@ jobs:
           done
 
           asset_count="$(find release-assets -maxdepth 1 -type f | wc -l)"
-          if [[ "$asset_count" -ne 3 ]]; then
+          if [[ "$asset_count" -ne 4 ]]; then
             echo "Unexpected files in release-assets:" >&2
             find release-assets -maxdepth 1 -type f -print >&2
             exit 1
@@ -140,12 +148,22 @@ jobs:
           fi
 
           for asset in "${expected[@]}"; do
-            if [[ "$asset" == *.zip ]]; then
-              manifest="$(unzip -Z1 "$asset")"
-            else
-              manifest="$(tar -tzf "$asset")"
-            fi
-            unsafe="$(printf '%s\n' "$manifest" | grep -E '(^|/)\.\.(/|$)|(^|/)(\.env|.*\.(pem|p12|pfx|key))$|(^|/)(model-cache|models|weights|__pycache__)(/|$)' || true)"
+            case "$asset" in
+              *.exe)
+                manifest="$(7z l -slt "$asset" | sed -n 's/^Path = //p')"
+                ;;
+              *.tar.gz)
+                manifest="$(tar -tzf "$asset")"
+                ;;
+              *.deb)
+                manifest="$(dpkg-deb --fsys-tarfile "$asset" | tar -t)"
+                ;;
+              *)
+                echo "Unsupported release asset: $asset" >&2
+                exit 1
+                ;;
+            esac
+            unsafe="$(printf '%s\n' "$manifest" | grep -E -i '(^|/)\.\.(/|$)|(^|/)(\.env|id_(rsa|ed25519)|[^/]*\.(bin|gguf|onnx|pt|pth|ckpt|pkl|pickle|safetensors|pem|p12|pfx|key))$|(^|/)(model-cache|models|weights|__pycache__)(/|$)|(^|/)[^/]*(credentials|secret|token|password)[^/]*$' || true)"
             if [[ -n "$unsafe" ]]; then
               echo "Unsafe path in release asset $asset:" >&2
               echo "$unsafe" >&2
@@ -155,7 +173,7 @@ jobs:
 
           (
             cd release-assets
-            sha256sum *.zip *.tar.gz > SHA256SUMS
+            sha256sum *.exe *.tar.gz *.deb > SHA256SUMS
           )
 
       - name: Create draft GitHub release
@@ -171,5 +189,5 @@ jobs:
             --draft \
             --verify-tag \
             --title "OBS WhisperBleep ${TAG}" \
-            --notes "Multi-platform OBS WhisperBleep ${TAG} build. Review the assets and publish the draft release when approved." \
+            --notes "Multi-platform OBS WhisperBleep ${TAG} build. The Linux DEB targets Ubuntu 26.04 LTS amd64; Windows and macOS payloads are unsigned. Debian 13/RPM support remains a later evaluation, and Windows signing has a separate SignPath handoff." \
             release-assets/*

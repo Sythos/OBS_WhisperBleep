@@ -9,9 +9,8 @@ The project uses CMake/CPack and installs the core library, the plugin stub,
 headers, documentation and license notices. M0 packages contain no Whisper
 weights, caches, credentials or unverified audio assets.
 
-The future release workflow must create Windows x64, Linux x86_64 and macOS
-universal archives only for a new version tag, after the full matrix has passed
-build and test.
+The release workflow is tag-gated and may create artifacts only after the full
+matrix has passed build, test and package validation.
 
 => M5 packaging boundary
 
@@ -41,6 +40,47 @@ release is ready. The native Whisper runtime, complete OBS/runtime dependency
 bundling, Windows/Linux CUDA distribution decisions, macOS signing and
 notarization, and tag-gated GitHub binary publication remain deferred to the
 next release milestone.
+
+=> Release artifact milestone
+
+For version `X.Y.Z`, the release CI contract must produce exactly these four
+payloads after package validation:
+
+- `OBS-WhisperBleep-X.Y.Z-Windows-x64-unsigned.exe`: an unsigned Windows x64 NSIS
+  installer;
+- `OBS-WhisperBleep-X.Y.Z-Linux-x86_64.tar.gz`: a Linux x86_64 TGZ archive;
+- `OBS-WhisperBleep-X.Y.Z-Linux-x86_64.deb`: an amd64 DEB built on and
+  targeted primarily at Ubuntu 26.04 LTS;
+- `OBS-WhisperBleep-X.Y.Z-macOS-universal.tar.gz`: an unsigned macOS universal
+  binary archive for Intel and Apple Silicon.
+
+The CI upload groups are platform-specific: one Windows x64 artifact containing
+the `.exe`, one Linux x86_64 artifact containing the `.tar.gz` and `.deb`, and
+one macOS universal artifact containing the `.tar.gz`. Release assembly must
+download only those four payloads, reject missing or additional payload files,
+scan every archive/installer staging tree for forbidden model, cache and
+credential material, and publish one `SHA256SUMS` file alongside the payloads.
+The exact version in every filename must equal `VERSION` and the newly created
+release tag.
+
+The DEB is intentionally built on the Ubuntu 26.04 LTS GitHub runner and is
+declared `amd64`; the runner label is currently a GitHub Actions public preview.
+The general build/test matrix remains on Ubuntu 24.04 for a stable baseline.
+Debian 13 installation and RPM generation are deferred until dedicated
+compatibility tests and dependency metadata are available.
+
+These are unsigned delivery artifacts. Signing is deliberately outside the CI
+build boundary: after the release payloads have passed their checks, a separate
+SignPath handoff may sign the Windows installer and any later platform-specific
+deliverables. The handoff must not replace package validation, modify the
+release payload set silently or claim that an unsigned artifact is signed.
+
+The current package contents are limited by the implementation boundary. The
+default CI builds the portable core and plugin stub; the native OBS module
+requires an explicitly supplied OBS SDK and `libobs`, and M7 has not yet wired
+its processed output into that native callback. Consequently, these artifacts
+must not be presented as a complete, production-ready native OBS Whisper
+runtime.
 
 => M7 optional bridge boundary
 
