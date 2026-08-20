@@ -444,7 +444,7 @@ does not authorize either operation.
 
 => 10.1 Current implementation tranche
 
-The implementation workstreams on `main` now cover the locale contract,
+The published M6 implementation workstreams on `main` cover the locale contract,
 the complete pinned OBS locale selector with English fallback, the native and
 stub language dropdown, all visible menu/property/update labels, the strict
 English-only model metadata and runtime policy, the synthetic beep default, the
@@ -454,6 +454,23 @@ green Linux, macOS and Windows CI. The remaining M6 hardening gates are
 package scanning and end-to-end latency evidence through a real Whisper
 adapter; the portable runtime remains an injected boundary until that later
 runtime milestone is implemented.
+
+=> 10.2 M7 transition and next gate
+
+The M7 worktree vertical slice adds `OpenAIWhisperRuntime`, the optional
+`runtime/openai_whisper_bridge.py` JSON-lines bridge and
+`EndToEndAudioPipeline`. The pipeline uses a bounded dedicated worker for
+runtime transcription, matching, scheduling and rendering; rejected or failed
+work preserves host pass-through audio, and `beep` remains the default
+replacement. The core does not launch the bridge process: a host injects and
+owns the runner.
+
+M7 is not part of the published M6 commit and does not close the M6 latency or
+packaging gates. The next gate is native OBS integration of delayed processed
+output with explicit host process lifecycle, safe back-pressure/status handling
+and measured end-to-end latency evidence. It must also confirm that the
+optional Python/OpenAI Whisper dependencies are not silently bundled or
+required by the portable build.
 
 => 11. Acceptance checklist
 

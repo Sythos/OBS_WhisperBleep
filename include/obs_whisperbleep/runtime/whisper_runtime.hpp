@@ -91,6 +91,69 @@ using RuntimeAdapterFactory = std::function<std::unique_ptr<IWhisperRuntime>(
     const RuntimeRequest& request, const BackendSelection& backend)>;
 
 /**
+ * One request/response exchange with a JSON-lines Whisper bridge process.
+ *
+ * The host owns process creation and lifetime. This keeps shell, Python and
+ * platform process APIs outside the portable core and makes the adapter
+ * deterministic to test with an injected runner.
+ */
+struct WhisperProcessRequest {
+  std::vector<std::string> command;
+  std::string input_line;
+};
+
+struct WhisperProcessResult {
+  bool started = false;
+  int exit_code = -1;
+  std::vector<std::string> output_lines;
+  std::string error_output;
+};
+
+using WhisperProcessRunner =
+    std::function<WhisperProcessResult(const WhisperProcessRequest& request)>;
+
+/** Configuration for the optional Python/OpenAI Whisper JSON-lines bridge. */
+struct OpenAIWhisperRuntimeConfig {
+  std::string python_executable = "python";
+  std::string bridge_script_path = "runtime/openai_whisper_bridge.py";
+  WhisperProcessRunner runner;
+};
+
+/**
+ * Concrete adapter for runtime/openai_whisper_bridge.py.
+ *
+ * It has no Python or OpenAI Whisper link-time dependency. A production host
+ * supplies a runner that maintains the bridge process; tests can supply a
+ * deterministic function instead.
+ */
+class OpenAIWhisperRuntime final : public IWhisperRuntime {
+ public:
+  explicit OpenAIWhisperRuntime(OpenAIWhisperRuntimeConfig config);
+
+  [[nodiscard]] RuntimeStatus initialize(std::string_view model_path) override;
+  [[nodiscard]] RuntimeStatus initialize(std::string_view model_path,
+                                         std::string_view language) override;
+  [[nodiscard]] std::vector<TranscriptSegment> transcribe(
+      const float* samples, std::size_t sample_count,
+      std::uint32_t sample_rate) override;
+
+  /** Returns the most recent bridge protocol or transport error. */
+  [[nodiscard]] const std::string& last_error() const noexcept;
+
+ private:
+  [[nodiscard]] WhisperProcessResult run(std::string input_line) const;
+
+  OpenAIWhisperRuntimeConfig config_;
+  std::string language_ = "auto";
+  std::string last_error_;
+  bool initialized_ = false;
+};
+
+/** Creates a factory adapter backed by an injected OpenAI Whisper runner. */
+[[nodiscard]] RuntimeAdapterFactory make_openai_whisper_adapter(
+    OpenAIWhisperRuntimeConfig config);
+
+/**
  * Dependency-free factory boundary for a concrete Whisper adapter.
  *
  * Without an injected factory, create() remains explicitly unavailable. This

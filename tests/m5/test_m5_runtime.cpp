@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -193,6 +194,73 @@ int main() {
          "factory stays unavailable without an injected adapter");
   expect(unavailable.message.find("no runtime adapter") != std::string::npos,
          "factory reports the missing adapter clearly");
+
+  std::vector<WhisperProcessRequest> bridge_requests;
+  OpenAIWhisperRuntimeConfig bridge_config;
+  bridge_config.python_executable = "python3";
+  bridge_config.bridge_script_path = "runtime/openai_whisper_bridge.py";
+  bridge_config.runner = [&](const WhisperProcessRequest& bridge_request) {
+    bridge_requests.push_back(bridge_request);
+    WhisperProcessResult result;
+    result.started = true;
+    result.exit_code = -1;
+    if (bridge_request.input_line.find("\"op\":\"initialize\"") !=
+        std::string::npos) {
+      result.output_lines = {"{\"status\":\"ready\"}"};
+    } else {
+      result.output_lines = {
+          "{\"status\":\"ready\",\"segments\":[{\"start_seconds\":0.25,"
+          "\"end_seconds\":0.75,\"text\":\"ciao\"}]}"};
+    }
+    return result;
+  };
+  WhisperRuntimeFactory openai_factory(
+      make_openai_whisper_adapter(bridge_config));
+  auto openai_ready = openai_factory.create(request);
+  expect(openai_ready.status == RuntimeStatus::ready &&
+             openai_ready.runtime != nullptr && bridge_requests.size() == 1 &&
+             bridge_requests.front().command ==
+                 std::vector<std::string>{"python3",
+                                          "runtime/openai_whisper_bridge.py"} &&
+             bridge_requests.front().input_line.find("\"model_path\":\"C:/models/tiny.model\"") !=
+                 std::string::npos,
+         "OpenAI adapter initializes through the injected JSON-lines runner");
+  const float audio[] = {0.0F, 0.5F, -0.5F};
+  const auto openai_transcript =
+      openai_ready.runtime->transcribe(audio, std::size(audio), 48'000);
+  expect(bridge_requests.size() == 2 && openai_transcript.size() == 1 &&
+             openai_transcript.front().start_frame == 12'000 &&
+             openai_transcript.front().end_frame == 36'000 &&
+             openai_transcript.front().text == "ciao" &&
+             bridge_requests.back().input_line.find("\"op\":\"transcribe\"") !=
+                 std::string::npos,
+         "OpenAI adapter serializes audio and converts bridge seconds to frames");
+
+  OpenAIWhisperRuntime no_runner(OpenAIWhisperRuntimeConfig{});
+  expect(no_runner.initialize("model.bin") == RuntimeStatus::unavailable &&
+             no_runner.last_error().find("runner was not injected") !=
+                 std::string::npos,
+         "OpenAI adapter remains unavailable without a host runner");
+
+  OpenAIWhisperRuntime invalid_transcript(OpenAIWhisperRuntimeConfig{
+      "python", "bridge.py",
+      [](const WhisperProcessRequest& bridge_request) {
+        WhisperProcessResult result;
+        result.started = true;
+        result.exit_code = -1;
+        result.output_lines = {
+            bridge_request.input_line.find("initialize") != std::string::npos
+                ? "{\"status\":\"ready\"}"
+                : "{\"status\":\"ready\",\"segments\":{}}"};
+        return result;
+      }});
+  expect(invalid_transcript.initialize("model.bin", "it") ==
+                 RuntimeStatus::ready &&
+             invalid_transcript.transcribe(audio, std::size(audio), 48'000)
+                     .empty() &&
+             invalid_transcript.last_error().find("segments array") !=
+                 std::string::npos,
+         "OpenAI adapter rejects malformed bridge transcript responses");
 
   BackendSelection injected_selection;
   std::string injected_model_path;

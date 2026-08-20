@@ -18,6 +18,7 @@ concurrency:
 jobs:
   validate:
     name: Validate version tag
+    if: github.event.created == true && github.event.deleted == false && github.event.forced == false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -34,11 +35,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          CREATED: ${{ github.event.created }}
+          DELETED: ${{ github.event.deleted }}
           FORCED: ${{ github.event.forced }}
         run: |
           set -euo pipefail
-          if [[ "$FORCED" == "true" ]]; then
-            echo "Forced tag updates cannot create releases." >&2
+          if [[ "$CREATED" != "true" || "$DELETED" == "true" || "$FORCED" == "true" ]]; then
+            echo "Only a newly created, non-forced version tag can create a release." >&2
             exit 1
           fi
 
@@ -122,15 +125,33 @@ jobs:
 
           forbidden="$(find release-assets -type f \( \
             -iname '*.bin' -o -iname '*.gguf' -o -iname '*.onnx' -o \
-            -iname '*.pt' -o -iname '*.pth' -o -iname '*.safetensors' -o \
+            -iname '*.pt' -o -iname '*.pth' -o -iname '*.ckpt' -o \
+            -iname '*.pkl' -o -iname '*.pickle' -o -iname '*.safetensors' -o \
             -path '*/model-cache/*' -o -path '*/models/*' -o \
-            -path '*/weights/*' \
+            -path '*/weights/*' -o -path '*/__pycache__/*' -o \
+            -iname '.env' -o -iname '*.pem' -o -iname '*.p12' -o \
+            -iname '*.pfx' -o -iname '*.key' -o -iname 'id_rsa' -o \
+            -iname 'id_ed25519' -o -iname '*credentials*' -o -iname '*secret*' \
           \))"
           if [[ -n "$forbidden" ]]; then
             echo "Forbidden model/cache file in release assets:" >&2
             echo "$forbidden" >&2
             exit 1
           fi
+
+          for asset in "${expected[@]}"; do
+            if [[ "$asset" == *.zip ]]; then
+              manifest="$(unzip -Z1 "$asset")"
+            else
+              manifest="$(tar -tzf "$asset")"
+            fi
+            unsafe="$(printf '%s\n' "$manifest" | grep -E '(^|/)\.\.(/|$)|(^|/)(\.env|.*\.(pem|p12|pfx|key))$|(^|/)(model-cache|models|weights|__pycache__)(/|$)' || true)"
+            if [[ -n "$unsafe" ]]; then
+              echo "Unsafe path in release asset $asset:" >&2
+              echo "$unsafe" >&2
+              exit 1
+            fi
+          done
 
           (
             cd release-assets

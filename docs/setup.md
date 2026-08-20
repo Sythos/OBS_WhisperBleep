@@ -176,3 +176,23 @@ The same test run includes `m6_i18n`, which verifies the locale fallback and
 the language dropdown contract without requiring an OBS installation. It also
 includes `m6_debug_log` and `m6_latency`. Native OBS label/debug rendering
 still requires the M1 SDK configuration described above.
+
+=> M7 optional OpenAI Whisper vertical-slice verification
+
+M7 remains testable through the normal dependency-free build and test commands
+above. Its C++ tests inject a JSON-lines process runner into
+`OpenAIWhisperRuntime`; they do not require Python, OpenAI Whisper, PyTorch,
+NumPy, a model file, network access or an OBS SDK.
+
+For a manual bridge experiment, install the Python dependencies in an
+environment managed by the host and provide a runner that starts and owns
+`runtime/openai_whisper_bridge.py`. The bridge expects one JSON object per
+stdin line and returns one JSON object per stdout line. Do not add process
+launching to the portable core, and do not treat the bridge script as proof that
+the dependencies are installed or that a model is available.
+
+`EndToEndAudioPipeline` accepts frames through a bounded worker. A rejected
+submission, unsupported sample rate, runtime error or invalid timeline result
+must keep the original frame as pass-through audio. The dependency-free `beep`
+is the default replacement for a confirmed match. Native OBS processed-output
+wiring and real end-to-end latency measurements are still the next gate.

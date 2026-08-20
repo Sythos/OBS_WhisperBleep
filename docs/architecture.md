@@ -228,10 +228,37 @@ uses a monotonic clock, records the ingress, processing and output stages,
 accepts three 500 ms audio delays as the 1.5-second baseline and reports an
 explicit 2.0-second video-delay reassessment instead of applying it silently.
 
+=> M7 optional OpenAI Whisper vertical slice
+
+M7 connects the existing portable boundaries in `EndToEndAudioPipeline`. Its
+realtime `submit()` call timestamps and attempts a bounded enqueue only. The
+single dedicated worker preserves accepted-frame order and performs runtime
+transcription, phrase matching, timeline conversion, replacement planning,
+rendering and result-callback delivery. A full queue, unsupported audio format,
+runtime failure or unusable timeline result has a deterministic safe outcome:
+the host retains the original frame as pass-through audio. The synthetic
+`beep` remains the default replacement when an interval is confirmed.
+
+`OpenAIWhisperRuntime` is a concrete but optional `IWhisperRuntime` adapter.
+It exchanges JSON-lines requests with `runtime/openai_whisper_bridge.py`; the
+bridge loads the OpenAI Whisper Python package and its optional NumPy/PyTorch
+dependencies only after a valid initialization request. It preserves the
+adapter boundary: the C++ core has no Python or Whisper link-time dependency.
+
+The core never creates, launches or supervises the bridge process. A platform
+host injects `WhisperProcessRunner` and owns process lifetime, I/O and failure
+policy; a missing runner leaves the adapter explicitly unavailable. This makes
+the protocol deterministic to test without Python or model weights and keeps
+platform process APIs outside the portable core.
+
+M7 does not yet wire processed M7 output into the native OBS filter callback.
+That integration must define delayed-output ownership, bridge lifecycle,
+settings-to-runtime activation, back-pressure reporting and measured end-to-end
+latency before it can claim a native OBS runtime.
+
 => Deferred milestones
 
-The real Whisper inference runtime and Python/PyTorch integration remain later
-milestones. M5 validates the backend and platform boundary but does not claim
-production CUDA execution, model-weight redistribution or a finished installer.
-The repository continues to keep model weights outside Git and outside release
-staging.
+Production native OBS runtime wiring, host-owned bridge-process lifecycle,
+production CUDA execution, model-weight redistribution and a finished installer
+remain later milestones. The repository continues to keep model weights outside
+Git and outside release staging.

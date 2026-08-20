@@ -145,10 +145,14 @@ jobs:
         shell: pwsh
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
-          $forbiddenExtensions = @('.bin', '.gguf', '.onnx', '.pt', '.pth', '.safetensors')
+          $forbiddenExtensions = @(
+            '.bin', '.gguf', '.onnx', '.pt', '.pth', '.ckpt', '.pkl',
+            '.pickle', '.safetensors', '.pem', '.p12', '.pfx', '.key'
+          )
           $forbidden = Get-ChildItem -Path stage -File -Recurse | Where-Object {
             ($forbiddenExtensions -contains $_.Extension.ToLowerInvariant()) -or
-            ($_.FullName -match '\\(model-cache|models|weights)\\')
+            ($_.FullName -match '\\(model-cache|models|weights|__pycache__)\\') -or
+            ($_.Name -match '^(\.env|id_rsa|id_ed25519)$|credentials|secret')
           }
           if ($forbidden) {
             $forbidden | ForEach-Object { Write-Error "Forbidden model/cache file: $($_.FullName)" }
@@ -160,6 +164,20 @@ jobs:
           if (-not (Test-Path -LiteralPath $archive)) {
             throw "Package was not created"
           }
+          if ((Get-Item -LiteralPath $archive).Length -le 0) {
+            throw "Package is empty"
+          }
+          $manifest = @(tar -tf $archive)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to inspect package manifest"
+          }
+          $unsafe = $manifest | Where-Object {
+            $_ -match '(^|/)\.\.(?:/|$)|(^|/)(model-cache|models|weights|__pycache__)(/|$)'
+          }
+          if ($unsafe) {
+            $unsafe | ForEach-Object { Write-Error "Unsafe package path: $_" }
+            exit 1
+          }
 
       - name: Package Unix
         if: runner.os != 'Windows'
@@ -169,9 +187,13 @@ jobs:
           version="$(tr -d '[:space:]' < VERSION)"
           forbidden="$(find stage -type f \( \
             -iname '*.bin' -o -iname '*.gguf' -o -iname '*.onnx' -o \
-            -iname '*.pt' -o -iname '*.pth' -o -iname '*.safetensors' -o \
-            -path '*/model-cache/*' -o -path '*/models/*' -o \
-            -path '*/weights/*' \
+            -iname '*.pt' -o -iname '*.pth' -o -iname '*.ckpt' -o \
+            -iname '*.pkl' -o -iname '*.pickle' -o -iname '*.safetensors' -o \
+            -iname '*.pem' -o -iname '*.p12' -o -iname '*.pfx' -o \
+            -iname '*.key' -o -path '*/model-cache/*' -o -path '*/models/*' -o \
+            -path '*/weights/*' -o -path '*/__pycache__/*' -o \
+            -name '.env' -o -name 'id_rsa' -o -name 'id_ed25519' -o \
+            -iname '*credentials*' -o -iname '*secret*' \
           \))"
           if [[ -n "$forbidden" ]]; then
             echo "Forbidden model/cache file:" >&2
@@ -186,6 +208,13 @@ jobs:
           fi
           tar -C stage -czf "$archive" .
           test -s "$archive"
+          manifest="$(tar -tzf "$archive")"
+          unsafe="$(printf '%s\n' "$manifest" | grep -E '(^|/)\.\.(/|$)|(^|/)(model-cache|models|weights|__pycache__)(/|$)' || true)"
+          if [[ -n "$unsafe" ]]; then
+            echo "Unsafe package path:" >&2
+            echo "$unsafe" >&2
+            exit 1
+          fi
 
       - name: Upload validation package
         uses: actions/upload-artifact@v7.0.1

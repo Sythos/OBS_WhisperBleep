@@ -56,8 +56,8 @@ investigate the problem clearly and safely.
 
 The project is still in pre-alpha. The remaining development milestones are:
 
-- real Whisper runtime integration, including model acquisition, transcription
-  and word-level timestamps;
+- native OBS wiring for the M7 Whisper vertical slice, including the host-owned
+  bridge-process lifecycle and delayed processed-output hand-off;
 - complete native OBS/Qt configuration UI and the full update-check flow;
 - production CPU/GPU backend integration, runtime dependency bundling and
   validation on supported systems;
@@ -205,6 +205,27 @@ caches, credentials, unverified audio, CUDA redistributables and runtime
 dependencies are not bundled by default. macOS signing/notarization, complete
 Whisper runtime packaging, and tag-gated binary publication remain part of the
 next release milestone.
+
+=> M7 optional OpenAI Whisper vertical slice
+
+Version `0.1.0` now contains an optional, testable path from accepted audio to
+transcription, phrase matching and replacement rendering. `EndToEndAudioPipeline`
+uses one bounded worker: realtime submission only timestamps and enqueues a
+frame, while Whisper calls, matching, timeline conversion, rendering and result
+delivery run off the OBS audio callback. A full or rejected queue has a safe
+default: the host keeps the original frame as immediate pass-through audio.
+
+`OpenAIWhisperRuntime` is an optional adapter for
+`runtime/openai_whisper_bridge.py`, a JSON-lines bridge to the OpenAI Whisper
+Python package. The portable core neither links Python, PyTorch, NumPy or
+Whisper nor launches a process. Instead, the host injects a process runner;
+without one the adapter reports itself unavailable and the audio path remains
+safe. The bridge imports its optional dependencies only after initialization.
+
+The built-in, dependency-free `beep` remains the default replacement. M7 is a
+vertical slice, not a claim of a finished native OBS runtime: native OBS
+processed-output wiring, bridge-process ownership/lifetime in a platform host,
+real latency evidence and production dependency packaging are the next gate.
 
 => Technologies
 
