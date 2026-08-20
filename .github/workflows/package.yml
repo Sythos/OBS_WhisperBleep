@@ -122,7 +122,7 @@ jobs:
           scan_listing "$(tar -tzf "${packages[0]}")"
           deb="${packages[1]}"
           [[ "$(dpkg-deb --field "$deb" Architecture)" == "amd64" ]]
-          [[ "$(dpkg-deb --field "$deb" Version) == "${version}" ]]
+          [[ "$(dpkg-deb --field "$deb" Version)" == "${version}" ]]
           [[ "$(dpkg-deb --field "$deb" Package)" == "obs-whisperbleep" ]]
           [[ "$(dpkg-deb --field "$deb" Maintainer)" == "Sythos" ]]
           [[ "$(dpkg-deb --field "$deb" Section)" == "sound" ]]
