@@ -49,9 +49,14 @@ int main() {
   using namespace obs_whisperbleep::runtime;
 
   const auto catalog = default_catalog();
-  expect(catalog.models().size() == 6, "catalog exposes six model ids");
+  expect(catalog.models().size() == 10,
+         "catalog exposes multilingual and English-only model ids");
   expect(catalog.find(ModelId::turbo) != nullptr, "catalog finds turbo");
+  expect(catalog.find(ModelId::medium_en) != nullptr,
+         "catalog finds the English-only selector option");
   expect(model_id_from_name("small") == ModelId::small, "parses model id");
+  expect(model_id_from_name("small.en") == ModelId::small_en,
+         "parses canonical English-only model id");
   expect(!model_id_from_name("missing").has_value(), "rejects unknown model");
 
   SuccessfulDownloader downloader;
@@ -63,8 +68,15 @@ int main() {
   expect(manager.active_model() == ModelId::tiny, "stores active model");
   expect(downloader.last_destination.filename() == "tiny.model",
          "uses deterministic destination");
+  expect(manager.select(ModelId::tiny_en),
+         "activates an English-only selector option without bundled weights");
+  expect(downloader.last_model == ModelId::tiny_en,
+         "passes the English-only model descriptor to the downloader");
+  expect(downloader.last_destination.filename() == "tiny.en.model",
+         "uses the canonical English-only name in the cache destination");
   expect(manager.select(ModelId::base), "activates second model");
-  expect(manager.previous_model() == ModelId::tiny, "retains previous model");
+  expect(manager.previous_model() == ModelId::tiny_en,
+         "retains the previously selected model");
 
   const auto fallback = select_backend(Backend::cuda, {true, false});
   expect(fallback.selected == Backend::cpu && fallback.used_fallback,

@@ -12,31 +12,31 @@ namespace {
 constexpr std::string_view kGitHubReleasesUrl =
     "https://github.com/Sythos/OBS_WhisperBleep/releases";
 
-ContextualPane pane_for(const MenuItem& item) {
+ContextualPane pane_for(const MenuItem& item, const std::string_view locale) {
   ContextualPane pane;
   pane.section = item.section;
   pane.title = item.label;
 
   switch (item.section) {
     case MenuSection::general:
-      pane.description = "General plugin settings and runtime status.";
+      pane.description =
+          std::string(translate(locale, keys::menu_general_description));
       break;
     case MenuSection::audio:
-      pane.description = "Replacement audio and synchronization settings.";
+      pane.description =
+          std::string(translate(locale, keys::menu_audio_description));
       break;
     case MenuSection::models:
       pane.description =
-          "Whisper model selection, download and cache status. When GPU is "
-          "selected, VRAM must hold both the Whisper model and the OBS game "
-          "or application. Avoid models that are too large; when a recent "
-          "mid-range CPU is available, prefer CPU to leave VRAM for the game "
-          "or application.";
+          std::string(translate(locale, keys::menu_models_description));
       break;
     case MenuSection::matching:
-      pane.description = "Word and phrase matching settings.";
+      pane.description =
+          std::string(translate(locale, keys::menu_matching_description));
       break;
     case MenuSection::about:
-      pane.description = "Plugin information and release update actions.";
+      pane.description =
+          std::string(translate(locale, keys::menu_about_description));
       pane.actions.push_back(MenuAction::check_updates);
       break;
   }
@@ -70,20 +70,31 @@ const char* menu_action_name(const MenuAction action) noexcept {
   return "Unknown Action";
 }
 
+std::string_view localized_menu_action_name(const MenuAction action,
+                                            const std::string_view locale) noexcept {
+  switch (action) {
+    case MenuAction::check_updates:
+      return translate(locale, keys::action_check_updates);
+  }
+  return translate(locale, keys::action_unknown);
+}
+
 std::string_view github_releases_url() noexcept { return kGitHubReleasesUrl; }
 
-std::vector<MenuItem> default_menu_items() {
+std::vector<MenuItem> default_menu_items(const std::string_view locale) {
   return {
-      {MenuSection::general, "general", "General"},
-      {MenuSection::audio, "audio", "Audio"},
-      {MenuSection::models, "models", "Models"},
-      {MenuSection::matching, "matching", "Matching"},
-      {MenuSection::about, "about", "About"},
+      {MenuSection::general, "general",
+       std::string(translate(locale, keys::menu_general))},
+      {MenuSection::audio, "audio", std::string(translate(locale, keys::menu_audio))},
+      {MenuSection::models, "models", std::string(translate(locale, keys::menu_models))},
+      {MenuSection::matching, "matching",
+       std::string(translate(locale, keys::menu_matching))},
+      {MenuSection::about, "about", std::string(translate(locale, keys::menu_about))},
   };
 }
 
-PluginMenu::PluginMenu(std::vector<MenuItem> items)
-    : items_(std::move(items)) {}
+PluginMenu::PluginMenu(std::vector<MenuItem> items, const std::string_view locale)
+    : items_(std::move(items)), locale_(resolve_locale(locale)) {}
 
 void PluginMenu::open() noexcept {
   open_ = true;
@@ -118,7 +129,7 @@ std::optional<ContextualPane> PluginMenu::contextual_pane() const {
   if (item == nullptr) {
     return std::nullopt;
   }
-  return pane_for(*item);
+  return pane_for(*item, locale_);
 }
 
 bool PluginMenu::select(const std::size_t index) noexcept {

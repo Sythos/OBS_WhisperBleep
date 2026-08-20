@@ -119,10 +119,12 @@ the repository.
 
 => M3 model catalog and cache boundary
 
-The catalog mirrors the six required OpenAI Whisper identifiers and records the
-official source URL, upstream version, PyTorch checkpoint format, MIT model
-license and SHA-256 value from the upstream manifest. Model weights remain
-outside Git and are resolved into a per-user cache directory.
+The catalog mirrors the six multilingual OpenAI Whisper identifiers and the
+four official English-only variants (`tiny.en`, `base.en`, `small.en` and
+`medium.en`). It records each canonical selector name, official source URL,
+upstream version, PyTorch checkpoint format, MIT model license, explicit
+`english_only` metadata and SHA-256 value from the upstream manifest. Model
+weights remain outside Git and are resolved into a per-user cache directory.
 
 The downloader verifies existing or newly transferred files before publishing
 them through a temporary-file and rename flow. Local `file://` sources are
@@ -148,6 +150,12 @@ added only after their provenance, royalty-free status and redistribution rights
 have been verified. Custom audio is validated and loaded outside the realtime
 callback; an unavailable or invalid asset must leave the original audio intact
 and expose a readable status to the user.
+
+The default replacement for a matched blacklist phrase is `beep`. It is
+generated as a bounded sine wave in the core and requires no bundled file,
+network request or external audio resource. If an asset-backed replacement is
+selected but is unavailable or invalid, the renderer preserves the original
+audio instead of emitting silence.
 
 The plugin Properties workflow uses a vertical section menu on the left and a
 wide contextual pane on the right. Every initial opening activates the first

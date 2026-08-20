@@ -308,10 +308,13 @@ UpdateChecker::UpdateChecker(ReleaseTransport transport)
     : transport_(std::move(transport)) {}
 
 UpdateCheckResult UpdateChecker::check(
-    const std::string_view installed_version) const {
+    const std::string_view installed_version,
+    const std::string_view locale) const {
   const auto installed = parse_version(installed_version);
   if (!installed.has_value()) {
-    return invalid_result(installed_version, "Installed version is invalid");
+    return invalid_result(
+        installed_version,
+        std::string(ui::translate(locale, ui::keys::update_invalid_installed)));
   }
 
   UpdateCheckResult result;
@@ -320,7 +323,8 @@ UpdateCheckResult UpdateChecker::check(
 
   if (!transport_) {
     result.status = UpdateStatus::network_error;
-    result.message = "No GitHub release transport is configured";
+    result.message = std::string(
+        ui::translate(locale, ui::keys::update_network_error));
     return result;
   }
 
@@ -337,20 +341,24 @@ UpdateCheckResult UpdateChecker::check(
   }
   if (!request_succeeded) {
     result.status = UpdateStatus::network_error;
-    result.message = error_message.empty() ? "GitHub release request failed"
-                                           : std::move(error_message);
+    result.message = error_message.empty()
+                         ? std::string(ui::translate(
+                               locale, ui::keys::update_network_error))
+                         : std::move(error_message);
     return result;
   }
 
   const auto tag = json_string_value(response_body, "tag_name");
   if (!tag.has_value()) {
-    return invalid_result(installed_version,
-                          "GitHub release response has no valid tag_name");
+    return invalid_result(
+        installed_version,
+        std::string(ui::translate(locale, ui::keys::update_invalid_response)));
   }
   const auto latest = parse_version(*tag);
   if (!latest.has_value()) {
-    return invalid_result(installed_version,
-                          "GitHub release tag_name is not a semantic version");
+    return invalid_result(
+        installed_version,
+        std::string(ui::translate(locale, ui::keys::update_invalid_response)));
   }
 
   result.latest_tag = *tag;
@@ -364,10 +372,12 @@ UpdateCheckResult UpdateChecker::check(
   const auto comparison = compare_versions(*installed, *latest);
   if (comparison < 0) {
     result.status = UpdateStatus::update_available;
-    result.message = "A newer GitHub release is available";
+    result.message =
+        std::string(ui::translate(locale, ui::keys::update_available));
   } else {
     result.status = UpdateStatus::up_to_date;
-    result.message = "The installed version is current";
+    result.message =
+        std::string(ui::translate(locale, ui::keys::update_up_to_date));
   }
   return result;
 }

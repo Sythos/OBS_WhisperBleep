@@ -22,13 +22,23 @@ const char* model_id_name(ModelId id) noexcept {
       return "large";
     case ModelId::turbo:
       return "turbo";
+    case ModelId::tiny_en:
+      return "tiny.en";
+    case ModelId::base_en:
+      return "base.en";
+    case ModelId::small_en:
+      return "small.en";
+    case ModelId::medium_en:
+      return "medium.en";
   }
   return "unknown";
 }
 
 std::optional<ModelId> model_id_from_name(std::string_view name) {
   for (const auto id : {ModelId::tiny, ModelId::base, ModelId::small,
-                        ModelId::medium, ModelId::large, ModelId::turbo}) {
+                        ModelId::medium, ModelId::large, ModelId::turbo,
+                        ModelId::tiny_en, ModelId::base_en, ModelId::small_en,
+                        ModelId::medium_en}) {
     if (name == model_id_name(id)) {
       return id;
     }
@@ -110,6 +120,34 @@ ModelCatalog default_catalog() {
        "MIT",
        0,
        std::nullopt, "openai-whisper-pytorch-checkpoint"},
+      {ModelId::tiny_en,
+       "tiny.en",
+       "https://openaipublic.azureedge.net/main/whisper/models/d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03/tiny.en.pt",
+       "d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03",
+       "MIT",
+       0,
+       std::nullopt, "openai-whisper-pytorch-checkpoint", true},
+      {ModelId::base_en,
+       "base.en",
+       "https://openaipublic.azureedge.net/main/whisper/models/25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead/base.en.pt",
+       "25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead",
+       "MIT",
+       0,
+       std::nullopt, "openai-whisper-pytorch-checkpoint", true},
+      {ModelId::small_en,
+       "small.en",
+       "https://openaipublic.azureedge.net/main/whisper/models/f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872/small.en.pt",
+       "f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872",
+       "MIT",
+       0,
+       std::nullopt, "openai-whisper-pytorch-checkpoint", true},
+      {ModelId::medium_en,
+       "medium.en",
+       "https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f/medium.en.pt",
+       "d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f",
+       "MIT",
+       0,
+       std::nullopt, "openai-whisper-pytorch-checkpoint", true},
   };
 
   return ModelCatalog(std::move(models),

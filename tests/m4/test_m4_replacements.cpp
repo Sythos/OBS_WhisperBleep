@@ -34,8 +34,9 @@ int main() {
 
   const auto options = ReplacementCatalog::options();
   expect(options.size() == 4, "exposes beep, duck, bark, and custom choices");
-  expect(options[0].kind == ReplacementKind::beep && options[0].synthetic,
-         "marks beep as locally generated");
+  expect(options[0].kind == ReplacementKind::beep && options[0].id == "beep" &&
+             options[0].synthetic && !options[0].requires_asset,
+         "marks beep as the local default without an external asset");
   expect(options[1].kind == ReplacementKind::duck &&
              options[2].kind == ReplacementKind::bark &&
              options[3].kind == ReplacementKind::custom,
@@ -46,6 +47,12 @@ int main() {
          "provides stable replacement identifiers");
 
   ReplacementCatalog catalog;
+  const auto default_beep = catalog.build(ReplacementRequest{}, 48000, 2, 32);
+  expect(default_beep.success() &&
+             default_beep.audio.samples ==
+                 SyntheticReplacement::beep(48000, 2, 32).samples,
+         "builds the default replacement as a synthetic beep");
+
   const auto beep = catalog.build(
       ReplacementRequest{ReplacementKind::beep, BeepOptions{800.0, 0.4F}},
       48000, 2, 32);
@@ -62,6 +69,11 @@ int main() {
   expect(missing_duck.status == ReplacementBuildStatus::missing_asset &&
              !catalog.has_asset(ReplacementKind::duck),
          "does not synthesize or download a missing duck asset");
+  const AudioBuffer source{48000, 1, {1.F, 1.F, 1.F, 1.F}};
+  const auto missing_duck_render = ReplacementRenderer::render(
+      source, {{1, 3}}, missing_duck.audio);
+  expect(missing_duck_render.samples == source.samples,
+         "keeps source audio on a missing asset");
 
   const AudioBuffer duck_audio{44100, 1, {0.1F, -0.1F, 0.2F}};
   const AudioBuffer bark_audio{48000, 2, {0.2F, 0.2F, -0.2F, -0.2F}};

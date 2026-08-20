@@ -61,6 +61,16 @@ AudioBuffer ReplacementRenderer::render(
     return output;
   }
 
+  // A replacement is optional at runtime: duck, bark and custom audio may
+  // still be loading or may have failed validation. Never turn an unavailable
+  // replacement into silence; preserving the original input is the safe
+  // fallback for a censor interval.
+  if (replacement.sample_rate == 0 || replacement.channels == 0 ||
+      replacement.frame_count() == 0 ||
+      replacement.samples.size() % replacement.channels != 0) {
+    return output;
+  }
+
   const auto merged = CensorScheduler::merge(intervals);
   for (const auto interval : merged) {
     // Clamp while the interval is still signed. Converting a negative end

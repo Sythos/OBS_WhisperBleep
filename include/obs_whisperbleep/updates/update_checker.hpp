@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+#include "obs_whisperbleep/ui/localization.hpp"
+
 namespace obs_whisperbleep::updates {
 
 enum class UpdateStatus {
@@ -58,7 +60,8 @@ class UpdateChecker {
   explicit UpdateChecker(ReleaseTransport transport = {});
 
   [[nodiscard]] UpdateCheckResult check(
-      std::string_view installed_version) const;
+      std::string_view installed_version,
+      std::string_view locale = ui::kDefaultLocale) const;
 
  private:
   ReleaseTransport transport_;

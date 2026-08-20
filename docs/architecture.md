@@ -102,13 +102,23 @@ and can be configured in frames. Signed intervals are clamped to the input
 buffer before index conversion; intervals ending at or before frame zero are
 ignored safely. This is the M2 duration and overlap policy.
 
+The beep is the default replacement for matched blacklist phrases. It is
+generated on demand from the requested sample rate and channel count, so the
+default path does not read or download an audio asset. Asset-backed choices
+remain registered through `ReplacementCatalog`; when one is missing or invalid,
+`ReplacementRenderer` leaves the input unchanged as the safe pass-through
+fallback rather than replacing the interval with silence.
+
 => M3 model catalog and cache boundary
 
 M3 records the official OpenAI Whisper model manifest without storing model
-weights in Git. Each descriptor carries its required identifier, approved
-source URL, upstream version metadata, checkpoint format, MIT model license and
-SHA-256 checksum. The platform layer resolves a per-user cache directory rather
-than a repository-relative path.
+weights in Git. The catalog exposes the six multilingual sizes and the four
+official English-only variants (`tiny.en`, `base.en`, `small.en` and
+`medium.en`). Each descriptor carries its canonical selector identifier,
+approved source URL, upstream version metadata, checkpoint format, MIT model
+license, SHA-256 checksum and an explicit `english_only` flag. The platform
+layer resolves a per-user cache directory rather than a repository-relative
+path.
 
 `ModelDownloader` publishes only files that pass checksum and optional size
 checks. It uses a temporary file and rename flow, supports cancellation, and
@@ -188,6 +198,35 @@ assets only; it excludes model weights, user caches, credentials, unverified
 audio and undeclared runtime dependencies. Staging is not a release: runtime
 bundling, CUDA redistribution, macOS signing/notarization and tag-gated
 publication remain open.
+
+=> M6 localization boundary
+
+The UI localization contract is shared by the deterministic Properties stub
+and the native OBS adapter. The selector exposes the 67 locale identifiers from
+the pinned OBS Studio reference, with `en-US` as the default and `it-IT` as the
+first translated catalog. Empty, unknown or malformed locale values resolve to
+`en-US`, and every missing translation falls back to its English text. The
+language selector is persisted as the `language` filter setting and is exposed
+as a stable string dropdown.
+
+The native adapter uses the selected locale when it constructs the Properties
+surface. OBS may need to reopen the Properties surface before labels are
+re-rendered after a language change; dynamic in-place Qt relayout is outside
+the current OBS boundary and is not claimed by this milestone. The
+dependency-free M6 test validates locale resolution, translation fallback,
+option ordering, visible menu/update labels and the stub Properties contract
+without requiring an OBS SDK. The `Debug` setting is disabled by default and
+is persisted with the filter settings; when enabled, the native adapter opens
+an exclusive `WhisperBleep_yyyymmdd_xxx.log` file below the OS user home and
+writes only sanitized lifecycle/settings events outside the realtime callback.
+
+The runtime boundary now validates the selected model's language scope before
+creating an adapter. Multilingual models accept `auto` or an explicit language
+tag; English-only `.en` models accept only an English tag and pass the
+normalized `en` policy to the adapter. The dependency-free latency evaluator
+uses a monotonic clock, records the ingress, processing and output stages,
+accepts three 500 ms audio delays as the 1.5-second baseline and reports an
+explicit 2.0-second video-delay reassessment instead of applying it silently.
 
 => Deferred milestones
 

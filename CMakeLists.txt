@@ -42,6 +42,8 @@ set(OBS_WHISPERBLEEP_CORE_SOURCES
   src/core/replacement_renderer.cpp
   src/core/synthetic_replacement.cpp
   src/core/timestamp_coordinator.cpp
+  src/diagnostics/debug_log.cpp
+  src/diagnostics/latency.cpp
   src/model/model_catalog.cpp
   src/model/model_downloader.cpp
   src/model/model_manager.cpp
@@ -50,6 +52,7 @@ set(OBS_WHISPERBLEEP_CORE_SOURCES
   src/runtime/backend_selector.cpp
   src/runtime/whisper_runtime.cpp
   src/platform/platform_info.cpp
+  src/ui/localization.cpp
   src/ui/plugin_menu.cpp
   src/updates/update_checker.cpp
 )
@@ -262,6 +265,28 @@ if(OBS_WHISPERBLEEP_BUILD_TESTS)
   target_link_libraries(obs_whisperbleep_m5_timeline_tests PRIVATE obs_whisperbleep_core)
   target_include_directories(obs_whisperbleep_m5_timeline_tests PRIVATE include)
   add_test(NAME m5_timeline COMMAND obs_whisperbleep_m5_timeline_tests)
+
+  add_executable(obs_whisperbleep_m6_i18n_tests
+    tests/m6/test_m6_i18n.cpp
+    src/obs/obs_properties.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m6_i18n_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m6_i18n_tests PRIVATE include)
+  add_test(NAME m6_i18n COMMAND obs_whisperbleep_m6_i18n_tests)
+
+  add_executable(obs_whisperbleep_m6_debug_log_tests
+    tests/m6/test_m6_debug_log.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m6_debug_log_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m6_debug_log_tests PRIVATE include)
+  add_test(NAME m6_debug_log COMMAND obs_whisperbleep_m6_debug_log_tests)
+
+  add_executable(obs_whisperbleep_m6_latency_tests
+    tests/m6/test_m6_latency.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m6_latency_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m6_latency_tests PRIVATE include)
+  add_test(NAME m6_latency COMMAND obs_whisperbleep_m6_latency_tests)
 endif()
 
 install(TARGETS obs_whisperbleep_core

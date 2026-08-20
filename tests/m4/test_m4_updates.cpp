@@ -40,6 +40,10 @@ int main() {
   expect(newer_result.release_url == UpdateChecker::releases_url(),
          "returns the external GitHub releases URL");
 
+  const auto italian_result = newer.check("0.1.0", "it-IT");
+  expect(italian_result.message == "È disponibile una nuova release GitHub",
+         "localizes update status messages");
+
   UpdateChecker current([](std::string_view, std::string& body, std::string&) {
     body = R"({"tag_name":"0.1.0"})";
     return true;

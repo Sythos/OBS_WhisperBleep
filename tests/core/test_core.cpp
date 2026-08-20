@@ -53,6 +53,18 @@ int main() {
          "loops replacement over interval");
   expect(close(rendered.samples[5], 1.F), "keeps audio after interval");
 
+  const AudioBuffer unavailable_replacement{48000, 1, {}};
+  const auto unavailable = ReplacementRenderer::render(
+      input, {{2, 5}}, unavailable_replacement);
+  expect(unavailable.samples == input.samples,
+         "passes through when replacement audio is unavailable");
+
+  const AudioBuffer malformed_replacement{48000, 2, {0.25F}};
+  const auto malformed = ReplacementRenderer::render(
+      input, {{2, 5}}, malformed_replacement);
+  expect(malformed.samples == input.samples,
+         "passes through when replacement audio is malformed");
+
   AudioPipeline pipeline(AudioPipelineConfig{100, 1});
   AudioFrame frame{123, input};
   const auto processed = pipeline.process(frame, {{0, 1}}, beep);

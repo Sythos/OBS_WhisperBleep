@@ -99,6 +99,11 @@ bark and custom-audio identifiers. Custom audio validation and loading belong
 on a worker, while a missing or unsupported file must preserve pass-through
 audio and expose a readable error state.
 
+The default replacement is the dependency-free synthetic `beep`. It is created
+from the input format without a bundled or downloaded sound file. If a selected
+duck, bark or custom asset is not available or fails validation, the renderer
+must keep the original audio unchanged.
+
 The native Properties workflow must be checked with the first left-hand menu
 item selected on initial opening, its content visible in the wide right-hand
 context pane, and the remaining sections reachable through the vertical menu.
@@ -106,6 +111,17 @@ The general or about section must expose `Check Updates`; the action compares
 the canonical installed version with the latest GitHub release, reports a newer
 version in a popup and offers an explicit external-browser link. It must never
 silently download or install an update or block the OBS audio callback.
+
+The `Debug` option is off by default. When enabled, the native module resolves
+the user home from `%USERPROFILE%` on Windows or `$HOME` on Linux/macOS and
+creates an exclusive `WhisperBleep_yyyymmdd_xxx.log` file there. Existing daily
+files are skipped rather than overwritten; diagnostic lines are sanitized and
+are written during lifecycle/settings work, never from the realtime callback.
+
+Latency validation starts with three consecutive 500 ms audio delays. The
+monotonic evaluator must keep Whisper processing and replacement within the
+1.5-second baseline; if measurements exceed it, the result records an explicit
+reassessment of a 2.0-second video delay for a later operator decision.
 
 => M5 backend, timeline and asset verification
 
@@ -155,3 +171,8 @@ cmake --preset debug
 cmake --build --preset debug
 ctest --test-dir build/debug --output-on-failure
 ```
+
+The same test run includes `m6_i18n`, which verifies the locale fallback and
+the language dropdown contract without requiring an OBS installation. It also
+includes `m6_debug_log` and `m6_latency`. Native OBS label/debug rendering
+still requires the M1 SDK configuration described above.

@@ -29,6 +29,20 @@ int main() {
   expect(menu.navigation_items().front().section == MenuSection::general,
          "general is the first navigation section");
 
+  PluginMenu italian_menu(default_menu_items("it-IT"), "it-IT");
+  expect(italian_menu.navigation_items().front().label == "Generale" &&
+             italian_menu.navigation_items().back().label == "Informazioni",
+         "the navigation labels use the selected locale");
+  italian_menu.open();
+  italian_menu.select(2);
+  const auto italian_models_pane = italian_menu.contextual_pane();
+  expect(italian_models_pane.has_value() &&
+             italian_models_pane->description.find("VRAM") != std::string::npos,
+         "the models description keeps the localized VRAM guidance");
+  expect(localized_menu_action_name(MenuAction::check_updates, "it-IT") ==
+             "Controlla aggiornamenti",
+         "the update action uses the selected locale");
+
   menu.open();
   expect(menu.is_open(), "opening marks the menu open");
   expect(menu.selected_index().has_value() && *menu.selected_index() == 0,

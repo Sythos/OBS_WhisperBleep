@@ -12,10 +12,12 @@ namespace obs_whisperbleep::obs {
 
 struct FilterSettings {
   bool enabled{true};
+  bool debug{false};
   std::string phrases;
   std::string model{"tiny"};
   std::string backend{"auto"};
   std::string replacement{"beep"};
+  std::string language{"en-US"};
 };
 
 /** Testable filter state shared by the native OBS adapter and the fallback. */

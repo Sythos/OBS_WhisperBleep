@@ -9,6 +9,8 @@
 #include <string_view>
 #include <vector>
 
+#include "obs_whisperbleep/ui/localization.hpp"
+
 namespace obs_whisperbleep::ui {
 
 enum class MenuSection { general, audio, models, matching, about };
@@ -38,12 +40,16 @@ struct MenuCommand {
 
 [[nodiscard]] const char* menu_section_name(MenuSection section) noexcept;
 [[nodiscard]] const char* menu_action_name(MenuAction action) noexcept;
+[[nodiscard]] std::string_view localized_menu_action_name(
+    MenuAction action, std::string_view locale = kDefaultLocale) noexcept;
 [[nodiscard]] std::string_view github_releases_url() noexcept;
-[[nodiscard]] std::vector<MenuItem> default_menu_items();
+[[nodiscard]] std::vector<MenuItem> default_menu_items(
+    std::string_view locale = kDefaultLocale);
 
 class PluginMenu {
  public:
-  explicit PluginMenu(std::vector<MenuItem> items = default_menu_items());
+  explicit PluginMenu(std::vector<MenuItem> items = default_menu_items(),
+                      std::string_view locale = kDefaultLocale);
 
   // Opening always starts from the first navigation item. This makes a newly
   // opened Properties surface deterministic even after a previous selection.
@@ -69,6 +75,7 @@ class PluginMenu {
   [[nodiscard]] bool action_available(MenuAction action) const noexcept;
 
   std::vector<MenuItem> items_;
+  std::string locale_;
   bool open_ = false;
   std::optional<std::size_t> selected_index_;
 };

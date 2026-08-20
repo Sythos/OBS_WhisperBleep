@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include "obs_whisperbleep/model/model_catalog.hpp"
 #include "obs_whisperbleep/runtime/backend_selector.hpp"
 
 namespace obs_whisperbleep::runtime {
@@ -25,11 +26,40 @@ enum class RuntimeStatus { ready, unavailable, error };
 
 [[nodiscard]] const char* runtime_status_name(RuntimeStatus status) noexcept;
 
+enum class RuntimeLanguageStatus { accepted, invalid, english_only_conflict };
+
+struct RuntimeLanguagePolicyResult {
+  RuntimeLanguageStatus status = RuntimeLanguageStatus::invalid;
+  std::string normalized_language;
+  std::string message;
+
+  [[nodiscard]] bool accepted() const noexcept {
+    return status == RuntimeLanguageStatus::accepted;
+  }
+};
+
+/**
+ * Checks a requested Whisper language against the selected model metadata.
+ *
+ * Multilingual descriptors accept an explicit language tag or `auto`.
+ * English-only descriptors accept English tags and normalize them to `en` so
+ * an injected adapter cannot accidentally run a different language policy.
+ */
+[[nodiscard]] RuntimeLanguagePolicyResult validate_language_policy(
+    const model::ModelDescriptor& model, std::string_view language);
+
 class IWhisperRuntime {
  public:
   virtual ~IWhisperRuntime() = default;
   [[nodiscard]] virtual RuntimeStatus initialize(
       std::string_view model_path) = 0;
+  /**
+   * Language-aware initialization for adapters that can enforce a model
+   * language policy. The compatibility implementation delegates to the
+   * original path-only method for existing adapters.
+   */
+  [[nodiscard]] virtual RuntimeStatus initialize(
+      std::string_view model_path, std::string_view language);
   [[nodiscard]] virtual std::vector<TranscriptSegment> transcribe(
       const float* samples, std::size_t sample_count,
       std::uint32_t sample_rate) = 0;
@@ -46,6 +76,8 @@ struct RuntimeRequest {
   std::string model_path;
   Backend requested_backend = Backend::auto_select;
   BackendProbeResult backend_probe;
+  model::ModelId model_id = model::ModelId::tiny;
+  std::string language = "auto";
 };
 
 struct RuntimeFactoryResult {
@@ -79,6 +111,7 @@ class WhisperRuntimeFactory final {
 /** Explicit M0 placeholder: no model is loaded and transcription is empty. */
 class StubWhisperRuntime final : public IWhisperRuntime {
  public:
+  using IWhisperRuntime::initialize;
   [[nodiscard]] RuntimeStatus initialize(std::string_view model_path) override;
   [[nodiscard]] std::vector<TranscriptSegment> transcribe(
       const float* samples, std::size_t sample_count,

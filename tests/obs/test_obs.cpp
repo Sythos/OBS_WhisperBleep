@@ -49,9 +49,11 @@ int main() {
 
   ObsFilter filter;
   expect(!filter.loaded(), "starts unloaded");
-  expect(filter.settings().enabled && filter.settings().model == "tiny" &&
+  expect(filter.settings().enabled && !filter.settings().debug &&
+             filter.settings().model == "tiny" &&
              filter.settings().backend == "auto" &&
-             filter.settings().replacement == "beep",
+             filter.settings().replacement == "beep" &&
+             filter.settings().language == "en-US",
          "starts with default settings");
   expect(same_frame(filter.process(input, intervals, replacement), input),
          "passes through while unloaded");
@@ -63,20 +65,25 @@ int main() {
 
   FilterSettings settings;
   settings.enabled = true;
+  settings.debug = true;
   settings.phrases = "spoiler words";
   settings.model = "small";
   settings.backend = "cpu";
   settings.replacement = "custom-beep";
+  settings.language = "it-IT";
   filter.update(settings);
-  expect(filter.settings().enabled && filter.settings().phrases == "spoiler words" &&
+  expect(filter.settings().enabled && filter.settings().debug &&
+             filter.settings().phrases == "spoiler words" &&
              filter.settings().model == "small" &&
              filter.settings().backend == "cpu" &&
-             filter.settings().replacement == "custom-beep",
+             filter.settings().replacement == "custom-beep" &&
+             filter.settings().language == "it-IT",
          "persists updated settings");
   filter.load();
   filter.unload();
   expect(filter.settings().phrases == "spoiler words" &&
-             filter.settings().model == "small",
+             filter.settings().model == "small" &&
+             filter.settings().language == "it-IT",
          "keeps settings across lifecycle changes");
 
   filter.load();
@@ -100,13 +107,16 @@ int main() {
          "processing is deterministic");
 
   const auto properties = obs::default_properties();
-  expect(properties.size() == 5, "exposes five default properties");
+  expect(properties.size() == 7, "exposes seven default properties");
   expect(has_property(properties, "enabled"), "exposes enabled property");
+  expect(has_property(properties, "debug"), "exposes debug property");
   expect(has_property(properties, "phrases"), "exposes phrases property");
   expect(has_property(properties, "model"), "exposes model property");
   expect(has_property(properties, "backend"), "exposes backend property");
   expect(has_property(properties, "replacement"),
          "exposes replacement property");
+  expect(has_property(properties, "language"),
+         "exposes language property");
 
   return EXIT_SUCCESS;
 }

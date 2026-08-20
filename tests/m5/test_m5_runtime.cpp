@@ -33,12 +33,20 @@ class TestRuntime final : public obs_whisperbleep::runtime::IWhisperRuntime {
     return status_;
   }
 
+  [[nodiscard]] obs_whisperbleep::runtime::RuntimeStatus initialize(
+      std::string_view model_path, std::string_view language) override {
+    initialized_path = std::string(model_path);
+    initialized_language = std::string(language);
+    return status_;
+  }
+
   [[nodiscard]] std::vector<obs_whisperbleep::runtime::TranscriptSegment>
   transcribe(const float*, std::size_t, std::uint32_t) override {
     return {};
   }
 
   std::string initialized_path;
+  std::string initialized_language;
 
  private:
   obs_whisperbleep::runtime::RuntimeStatus status_;
@@ -176,6 +184,7 @@ int main() {
   request.model_path = "C:/models/tiny.model";
   request.requested_backend = Backend::cpu;
   request.backend_probe = cpu_only_probe;
+  request.language = "it";
 
   WhisperRuntimeFactory no_adapter;
   const auto unavailable = no_adapter.create(request);
@@ -239,6 +248,61 @@ int main() {
              no_backend.message.find("No backend is available") !=
                  std::string::npos,
          "factory rejects an unavailable backend before adapter creation");
+
+  const auto catalog = model::default_catalog();
+  const auto* multilingual_model = catalog.find(model::ModelId::tiny);
+  const auto* english_model = catalog.find(model::ModelId::tiny_en);
+  expect(multilingual_model != nullptr && english_model != nullptr &&
+             !multilingual_model->english_only && english_model->english_only,
+         "runtime tests use distinct multilingual and English-only metadata");
+
+  const auto multilingual_policy =
+      validate_language_policy(*multilingual_model, "it-IT");
+  expect(multilingual_policy.accepted() &&
+             multilingual_policy.normalized_language == "it-IT",
+         "multilingual models accept an explicit non-English language");
+
+  const auto english_policy = validate_language_policy(*english_model, "EN-us");
+  expect(english_policy.accepted() &&
+             english_policy.normalized_language == "en",
+         "English-only models normalize English language tags to en");
+
+  const auto rejected_policy = validate_language_policy(*english_model, "it");
+  expect(!rejected_policy.accepted() &&
+             rejected_policy.status == RuntimeLanguageStatus::english_only_conflict,
+         "English-only models reject non-English language requests");
+
+  RuntimeRequest english_request = request;
+  english_request.model_id = model::ModelId::tiny_en;
+  english_request.language = "en-US";
+  int language_factory_calls = 0;
+  std::string initialized_language;
+  WhisperRuntimeFactory language_aware_factory(
+      [&](const RuntimeRequest& received, const BackendSelection&) {
+        ++language_factory_calls;
+        initialized_language = received.language;
+        return std::make_unique<TestRuntime>(RuntimeStatus::ready);
+      });
+  const auto english_ready = language_aware_factory.create(english_request);
+  expect(english_ready.status == RuntimeStatus::ready &&
+             language_factory_calls == 1 && initialized_language == "en",
+         "factory passes the normalized English-only policy to the adapter");
+
+  RuntimeRequest invalid_english_request = english_request;
+  invalid_english_request.language = "it-IT";
+  const auto invalid_english =
+      language_aware_factory.create(invalid_english_request);
+  expect(invalid_english.status == RuntimeStatus::error &&
+             invalid_english.runtime == nullptr && language_factory_calls == 1 &&
+             invalid_english.message.find("English-only") != std::string::npos,
+         "factory rejects an incoherent English-only request before creation");
+
+  RuntimeRequest auto_english_request = english_request;
+  auto_english_request.language = "auto";
+  const auto auto_english = language_aware_factory.create(auto_english_request);
+  expect(auto_english.status == RuntimeStatus::error &&
+             language_factory_calls == 1,
+         "English-only models reject automatic language detection");
 
   return EXIT_SUCCESS;
 }

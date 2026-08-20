@@ -11,7 +11,21 @@
 
 namespace obs_whisperbleep::model {
 
-enum class ModelId { tiny, base, small, medium, large, turbo };
+// The first six values preserve the original multilingual selector ordering.
+// The English-only variants use the canonical OpenAI names returned by
+// model_id_name (for example, ModelId::tiny_en maps to "tiny.en").
+enum class ModelId {
+  tiny,
+  base,
+  small,
+  medium,
+  large,
+  turbo,
+  tiny_en,
+  base_en,
+  small_en,
+  medium_en,
+};
 
 struct ModelDescriptor {
   ModelId id = ModelId::tiny;
@@ -24,6 +38,7 @@ struct ModelDescriptor {
   // byte size for this model.
   std::optional<std::uint64_t> expected_size_bytes;
   std::string format = "openai-whisper-pytorch-checkpoint";
+  bool english_only = false;
 };
 
 struct ModelCatalogMetadata {
