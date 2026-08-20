@@ -15,9 +15,9 @@ This document is the execution contract for the M6 workstreams that cover:
 It also defines the cross-cutting M6 hardening gates for end-to-end latency,
 the `Debug` diagnostic log, CI, independent review and release hygiene.
 
-This is an operational plan for the implementation branch. Product code and
+This is an operational plan for the project `main` branch. Product code and
 tests may be changed by the assigned workstreams, but no model weights may be
-created and no agent may commit or push changes.
+created and no subagent may commit or push changes.
 
 => 1. Source of truth and non-negotiable invariants
 
@@ -48,7 +48,7 @@ OBS-independent CMake/test boundary and Sythos-only project attribution.
 
 => 2. Operating model
 
-The parent agent owns the integration branch and the final decision. Three
+The parent agent owns the `main` integration branch and the final decision. Three
 implementation agents work in parallel on disjoint areas, then a separate
 review agent performs a read-only review of the integrated diff.
 
@@ -137,7 +137,7 @@ not publish a matching English-only artifact. No agent may append `.en`, rename
 an ID or claim a checksum without source evidence. Model weights remain outside
 Git and all deterministic tests use fixtures or injected transports.
 
-Implementation decision for this branch: use the strict artifact policy. The
+Implementation decision for `main`: use the strict artifact policy. The
 four upstream `.en` checkpoints are selectable and carry explicit
 `english_only` metadata; `large` and `turbo` remain multilingual because no
 official `.en` artifacts are published. The runtime rejects incoherent
@@ -444,12 +444,13 @@ does not authorize either operation.
 
 => 10.1 Current implementation tranche
 
-The implementation workstreams in this branch now cover the locale contract,
+The implementation workstreams on `main` now cover the locale contract,
 the complete pinned OBS locale selector with English fallback, the native and
 stub language dropdown, all visible menu/property/update labels, the strict
 English-only model metadata and runtime policy, the synthetic beep default, the
 safe asset pass-through, the Debug flag/log writer and the deterministic
-latency evaluator. The remaining commit gate is independent CI/build evidence,
+latency evaluator. The implementation commit is published on `main` with
+green Linux, macOS and Windows CI. The remaining M6 hardening gates are
 package scanning and end-to-end latency evidence through a real Whisper
 adapter; the portable runtime remains an injected boundary until that later
 runtime milestone is implemented.
@@ -487,8 +488,11 @@ runtime milestone is implemented.
       approved rather than implicit.
 - [x] Debug is disabled by default and logs use OS home resolution, the exact
       filename pattern, progressive daily numbering and exclusive creation.
-- [ ] Stress/regression tests and the three-platform CI matrix are green.
+- [ ] Stress and long-running regression tests are complete.
+- [x] The Linux, macOS and Windows CI matrix is green for the published M6
+      implementation commit.
 - [ ] CPack/source-archive scans exclude weights, caches, credentials and
       unverified assets.
-- [ ] Independent review is complete; only then may the parent consider a
-      Sythos-attributed commit and, after separate authorization, a push.
+- [x] Independent review of the published implementation commit is complete.
+- [x] The implementation commit and explicit push use the Sythos identity on
+      `main`.
