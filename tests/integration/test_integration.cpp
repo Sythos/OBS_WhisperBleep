@@ -112,7 +112,8 @@ int main() {
              asynchronous_result.intervals[0].end_frame == 1020,
          "maps matching runtime timestamps to absolute censor intervals");
   expect(asynchronous_result.output.audio.samples[0] == 1.F &&
-             asynchronous_result.output.audio.samples[11] != 1.F,
+             asynchronous_result.output.audio.samples[11] == 1.F &&
+             asynchronous_result.output.audio.samples[20] != 1.F,
          "uses the default beep to render only the matched interval");
   expect(asynchronous_result.latency.valid,
          "attaches monotonic end-to-end latency metadata");
