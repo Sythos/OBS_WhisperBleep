@@ -265,12 +265,14 @@ license and attribution have been verified.
 
 ==> Binary availability and warranty
 
-Binaries will be made available as soon as possible. The intended fully
-operational targets are Linux x86_64 and Windows x64; the current pre-alpha
-packages still expose the portable core/plugin-stub boundary described above.
-A macOS universal binary may also be provided, but it may be unsigned: Apple
-signing and notarization currently require costs, membership and administrative
-steps that are not sustainable at this stage of development.
+Prebuilt binaries will be released as soon as they are ready, with Linux
+x86_64 and Windows x64 as the initial targets for fully operational builds. The
+current pre-alpha packages are still limited to the portable core and
+plugin-stub boundary described above. A universal macOS build may also be
+provided, but it will likely remain unsigned for now: Apple signing and
+notarization require a paid developer membership, certificates and additional
+administrative work that are not financially sustainable for the project at
+this stage.
 
 Everything is provided `as is`, without warranty of any kind. Please test it
 carefully before relying on it in a live or production environment.
