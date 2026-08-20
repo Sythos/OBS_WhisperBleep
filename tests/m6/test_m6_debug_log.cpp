@@ -45,7 +45,7 @@ int main() {
          "disabled logging creates no file");
 
   {
-    const auto first =
+    auto first =
         DebugLog::open(DebugLogOptions{true, root, "20260820"});
     expect(first.ready(), "enabled logging creates the first file");
     expect(first.path().filename() == "WhisperBleep_20260820_001.log",
@@ -69,7 +69,7 @@ int main() {
                              std::ios::binary);
       sentinel << "do not overwrite";
     }
-    const auto third =
+    auto third =
         DebugLog::open(DebugLogOptions{true, root, "20260820"});
     expect(third.ready() &&
                third.path().filename() == "WhisperBleep_20260820_004.log",

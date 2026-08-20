@@ -249,9 +249,11 @@ int main() {
                  std::string::npos,
          "factory rejects an unavailable backend before adapter creation");
 
-  const auto catalog = model::default_catalog();
-  const auto* multilingual_model = catalog.find(model::ModelId::tiny);
-  const auto* english_model = catalog.find(model::ModelId::tiny_en);
+  const auto catalog = obs_whisperbleep::model::default_catalog();
+  const auto* multilingual_model =
+      catalog.find(obs_whisperbleep::model::ModelId::tiny);
+  const auto* english_model =
+      catalog.find(obs_whisperbleep::model::ModelId::tiny_en);
   expect(multilingual_model != nullptr && english_model != nullptr &&
              !multilingual_model->english_only && english_model->english_only,
          "runtime tests use distinct multilingual and English-only metadata");
@@ -273,7 +275,7 @@ int main() {
          "English-only models reject non-English language requests");
 
   RuntimeRequest english_request = request;
-  english_request.model_id = model::ModelId::tiny_en;
+  english_request.model_id = obs_whisperbleep::model::ModelId::tiny_en;
   english_request.language = "en-US";
   int language_factory_calls = 0;
   std::string initialized_language;
