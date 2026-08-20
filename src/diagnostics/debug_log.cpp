@@ -228,7 +228,7 @@ struct DebugLog::Stream {
         continue;
       }
       return DebugLog(DebugLogStatus::failed, {},
-                      "Unable to create the debug log file: " +
+                      std::string("Unable to create the debug log file: ") +
                           std::strerror(errno),
                       nullptr);
     }
