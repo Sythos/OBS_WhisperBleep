@@ -45,13 +45,14 @@ jobs:
             exit 1
           fi
 
-          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release tags must use bare MAJOR.MINOR.PATCH semver." >&2
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tags must use MAJOR.MINOR.PATCH with an optional prerelease suffix." >&2
             exit 1
           fi
 
           version="$(tr -d '[:space:]' < VERSION)"
-          if [[ "$TAG" != "$version" ]]; then
+          base_tag="${TAG%%-*}"
+          if [[ "$base_tag" != "$version" ]]; then
             echo "Tag $TAG does not match VERSION $version." >&2
             exit 1
           fi
