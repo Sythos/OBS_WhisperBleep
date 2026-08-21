@@ -573,8 +573,15 @@ class PersistentWhisperProcessRunner::Impl final {
                                     wire.size() - offset);
       const int error = errno;
       if (written < 0 && error == EPIPE) {
-        timespec no_wait{};
-        (void)sigtimedwait(&blocked, nullptr, &no_wait);
+        // macOS does not provide sigtimedwait. A blocked SIGPIPE is pending
+        // for this thread after a closed child pipe; consume it synchronously
+        // before restoring the caller's signal mask.
+        sigset_t pending{};
+        if (sigpending(&pending) == 0 &&
+            sigismember(&pending, SIGPIPE) == 1) {
+          int received = 0;
+          (void)sigwait(&blocked, &received);
+        }
       }
       (void)pthread_sigmask(SIG_SETMASK, &previous, nullptr);
       if (written <= 0) {
