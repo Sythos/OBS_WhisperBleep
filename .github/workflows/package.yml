@@ -237,6 +237,13 @@ jobs:
           [[ "$(dpkg-deb --field "$deb" Maintainer)" == "Sythos" ]]
           [[ "$(dpkg-deb --field "$deb" Section)" == "sound" ]]
           [[ "$(dpkg-deb --field "$deb" Homepage)" == "https://www.sythos.net" ]]
+          deb_dependencies="$(dpkg-deb --field "$deb" Depends)"
+          [[ "$deb_dependencies" == *python3*python3-pip*python3-venv* ]] || {
+            echo "The DEB does not declare the Python runtime prerequisites: $deb_dependencies" >&2
+            exit 1
+          }
+          deb_listing="$(dpkg-deb --fsys-tarfile "$deb" | tar -t)"
+          printf '%s\n' "$deb_listing" | grep -Eq '(^|/)usr/share/obs-whisperbleep/install\.sh$'
           scan_listing "$(dpkg-deb --fsys-tarfile "$deb" | tar -t)"
 
       - name: Upload Linux packages

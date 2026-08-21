@@ -5,12 +5,14 @@ SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
 
 > Python, Whisper, PyTorch and model runtime strategy
 
-The first public installer strategy keeps Python, OpenAI Whisper, PyTorch,
-CUDA libraries and model weights outside the installer. The OBS plugin remains
-portable and host-owned: it starts one persistent JSON-lines bridge per filter
-instance, performs no process launch or inference in the realtime callback and
-falls back to delayed pass-through audio when the optional runtime is absent or
-fails.
+The public installer strategy keeps the Python interpreter, CUDA libraries and
+model weights outside the binary payload. Windows and Linux packages include a
+documented bootstrap script that can create a dedicated environment and install
+OpenAI Whisper, PyTorch and NumPy from their official indexes. The OBS plugin
+remains portable and host-owned: it starts one persistent JSON-lines bridge per
+filter instance, performs no process launch or inference in the realtime
+callback and falls back to delayed pass-through audio when the optional runtime
+is absent or fails.
 
 => Supported ownership boundary
 
@@ -23,11 +25,29 @@ redistribution obligations.
 
 The current native adapter accepts `OBS_WHISPERBLEEP_PYTHON` for an explicit
 interpreter path and `OBS_WHISPERBLEEP_BRIDGE_SCRIPT` for an explicit bridge
-path. Until interpreter selection is exposed in the OBS UI, set these variables
-in the environment inherited by OBS, or make the intended virtual-environment
-interpreter available as `python` on the plugin process `PATH`. The local test
-harness accepts an explicit interpreter path and is the recommended way to
-validate a venv.
+path. The native adapter also discovers the standard installer-created runtime
+locations on Windows, Linux and macOS. Set `OBS_WHISPERBLEEP_PYTHON` when a
+custom environment is preferred. The local test harness accepts an explicit
+interpreter path and is the recommended way to validate a venv.
+
+=> Installer-assisted setup
+
+The Windows NSIS installer runs `runtime/install-runtime.ps1` after the plugin
+files are copied. It uses WinGet for Python 3.11 when necessary, creates a
+machine-wide virtual environment under `C:\ProgramData\Sythos\OBS-WhisperBleep`,
+and installs the pinned CPU requirements. Network access is required for this
+optional step; a failed download leaves the plugin installed with safe
+pass-through behavior and prints a retry command.
+
+The Ubuntu/Debian package declares `python3 (>= 3.11)`, `python3-pip`,
+`python3-venv`, `ca-certificates` and `ffmpeg`. Its post-install hook runs the
+packaged `/usr/share/obs-whisperbleep/install.sh --system` script, which creates
+`/opt/obs-whisperbleep/runtime-venv`. The Linux TGZ contains the same script for
+manual `--user` or `--system` setup.
+
+The macOS archive contains `share/obs-whisperbleep/README.macos` instead of a
+post-install script. Follow it to create a user-owned Python 3.11 environment
+and export `OBS_WHISPERBLEEP_PYTHON` before launching OBS.
 
 => Reproducible Windows workstation setup
 
@@ -68,8 +88,8 @@ Use `-RequireNative` only after CMake, a C++20 compiler and matching OBS SDK
 paths are available. GPU testing is a separate opt-in: install the PyTorch
 wheel selected by the official selector for the installed NVIDIA driver, then
 run the same harness with an existing verified model path. The bootstrap never
-downloads model weights and never places Python, CUDA or models inside the
-installer.
+downloads model weights and never places a Python interpreter, CUDA
+redistributables or models inside the binary payload.
 
 => Python baseline and dependency policy
 
@@ -197,9 +217,10 @@ are demonstrated on each supported platform:
   operator decision to reassess the video delay at 2 seconds;
 - pass-through behavior when Python, dependencies, model or bridge are absent.
 
-Until then, the official unsigned installers remain host-runtime packages and
-must not include Python, PyTorch, CUDA redistributables, model weights or
-unverified audio assets.
+Until then, the official installers remain host-runtime packages: bootstrap
+scripts may download the declared CPU Python wheels at install time, but the
+payloads must not include model weights, CUDA redistributables or unverified
+audio assets.
 
 => License and redistribution boundary
 
@@ -216,8 +237,9 @@ payload. The current inventory is:
 
 If a future release bundles any of these components, the corresponding license
 texts, notices, source obligations and redistribution permissions must be added
-to `NOTICE`, `third_party/` and the package scan before publication. No optional
-runtime dependency is currently bundled by this repository.
+to `NOTICE`, `third_party/` and the package scan before publication. The current
+installer scripts download these components at setup time instead of embedding
+them in the repository payload.
 
 => References
 

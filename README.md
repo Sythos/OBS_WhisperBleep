@@ -210,11 +210,12 @@ a separate step.
 
 A staged package is not yet a finished public release: model weights, model
 caches, credentials, unverified audio, CUDA redistributables and runtime
-dependencies are not bundled by default. The default CI builds the portable
-core and plugin stub; the native release lane builds Linux and Windows against
-an explicit OBS SDK and `libobs`, while macOS remains an unsigned universal
-stub archive. Complete Whisper runtime packaging, production latency evidence
-and host compatibility validation remain future work.
+binaries are not bundled. Windows and Linux packages include documented
+bootstrap scripts that can install the pinned CPU Python dependencies at setup
+time. The default CI builds the portable core and plugin stub; the native
+release lane builds Linux and Windows against an explicit OBS SDK and `libobs`,
+while macOS remains an unsigned universal stub archive. Complete production
+latency evidence and host compatibility validation remain future work.
 
 => M7 optional OpenAI Whisper vertical slice
 
@@ -236,10 +237,12 @@ The built-in, dependency-free `beep` remains the default replacement. The
 native OBS bridge now connects the bounded pipeline to the host audio filter:
 the realtime callback only performs bounded capture and hand-off, while the
 adapter worker returns delayed processed audio or a safe pass-through frame.
-The host still owns the persistent bridge process and must provide Python,
-OpenAI Whisper, PyTorch, NumPy and the selected model. M7 is therefore a
-functional integration slice, not a claim that those optional runtime
-dependencies are bundled or production-ready.
+The host still owns the persistent bridge process and selected model. Windows
+and Linux installers can create the required Python environment from the
+official PyTorch CPU and PyPI indexes; macOS includes manual instructions in
+`share/obs-whisperbleep/README.macos`. M7 is therefore a functional integration
+slice, not a claim that runtime dependencies or model weights are bundled or
+production-ready.
 
 When a filter starts with a missing or empty selected model file, the native
 adapter keeps safe delayed pass-through audio and opens that filter's OBS
@@ -257,6 +260,22 @@ The optional CPU runtime container is published alongside normal releases at
 `ghcr.io/sythos/obs-whisperbleep-runtime`. It contains the bridge and runtime
 dependencies but no model weights; the desktop OBS plugin remains a native
 host component.
+
+=> Installer runtime setup
+
+The Windows NSIS installer runs `runtime/install-runtime.ps1` and uses WinGet
+to obtain Python 3.11 when needed, then creates a machine-wide virtual
+environment and installs the pinned CPU dependencies. Restart OBS after the
+installer finishes.
+
+The Ubuntu 26.04 LTS DEB declares `python3 (>= 3.11)`, `python3-pip`,
+`python3-venv`, `ca-certificates` and `ffmpeg`, and its post-install hook runs
+`/usr/share/obs-whisperbleep/install.sh --system`. The Linux TGZ contains the
+same script for a manual `--user` or `--system` setup.
+
+The macOS archive contains `share/obs-whisperbleep/README.macos` with English
+manual instructions. None of these bootstrap paths downloads model weights;
+the model must still be selected and verified through the OBS workflow.
 
 => Technologies
 

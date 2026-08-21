@@ -1,0 +1,55 @@
+<!--
+SPDX-License-Identifier: MIT
+SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
+-->
+
+> macOS runtime setup
+
+The macOS archive is unsigned and does not bundle Python, Whisper, PyTorch or
+model weights. Install the optional runtime manually in a user-owned virtual
+environment before enabling the filter.
+
+=> Install the prerequisites
+
+Install Homebrew if it is not already available, then install Python 3.11 and
+FFmpeg:
+
+```sh
+brew install python@3.11 ffmpeg
+```
+
+Create the environment and install the CPU baseline. The PyTorch CPU index is
+used deliberately; Apple GPU/MPS support remains an explicit host choice and
+is not claimed by this unsigned package:
+
+```sh
+runtime_root="$HOME/Library/Application Support/Sythos/OBS-WhisperBleep/runtime-venv"
+python3.11 -m venv "$runtime_root"
+"$runtime_root/bin/python" -m pip install --upgrade pip
+"$runtime_root/bin/python" -m pip install \
+  --index-url https://download.pytorch.org/whl/cpu \
+  --extra-index-url https://pypi.org/simple \
+  -r "$PWD/requirements-cpu.txt"
+```
+
+The command above assumes the shell is currently in the installed package's
+`share/obs-whisperbleep` directory. If that directory is not convenient, use
+the absolute path to the packaged `requirements-cpu.txt`.
+
+=> Tell OBS which Python to use
+
+Launch OBS Studio from a terminal after exporting the interpreter path:
+
+```sh
+export OBS_WHISPERBLEEP_PYTHON="$HOME/Library/Application Support/Sythos/OBS-WhisperBleep/runtime-venv/bin/python"
+open -a "OBS"
+```
+
+Alternatively, configure the same variable in the shell or launcher used to
+start OBS. Download and verify a Whisper model through the plugin before
+enabling censorship. Model weights are never included in this archive.
+
+The plugin is provided as-is. macOS signing and notarization are not included
+because the Apple developer membership, certificates and administrative
+requirements are not economically sustainable for this project at its current
+stage.

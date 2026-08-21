@@ -1,0 +1,15 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
+
+set -u
+
+installer=/usr/share/obs-whisperbleep/install.sh
+if [ -x "$installer" ]; then
+  if ! "$installer" --system --non-interactive --no-apt; then
+    echo "OBS WhisperBleep: the optional Python runtime could not be installed." >&2
+    echo "Run /usr/share/obs-whisperbleep/install.sh --system after fixing network or Python dependencies." >&2
+  fi
+fi
+
+exit 0

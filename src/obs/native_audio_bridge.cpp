@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -182,6 +183,44 @@ struct ResultSlot {
   }
 
   return "runtime/openai_whisper_bridge.py";
+}
+
+[[nodiscard]] std::string packaged_python_executable() {
+  std::vector<std::filesystem::path> candidates;
+#if defined(_WIN32)
+  if (const char* program_data = std::getenv("ProgramData");
+      program_data != nullptr && program_data[0] != '\0') {
+    candidates.emplace_back(program_data);
+    candidates.back() /= "Sythos/OBS-WhisperBleep/runtime-venv/Scripts/python.exe";
+  }
+  if (const char* local_app_data = std::getenv("LOCALAPPDATA");
+      local_app_data != nullptr && local_app_data[0] != '\0') {
+    candidates.emplace_back(local_app_data);
+    candidates.back() /= "Sythos/OBS-WhisperBleep/runtime-venv/Scripts/python.exe";
+  }
+#elif defined(__APPLE__)
+  if (const char* home = std::getenv("HOME"); home != nullptr && home[0] != '\0') {
+    candidates.emplace_back(home);
+    candidates.back() /=
+        "Library/Application Support/Sythos/OBS-WhisperBleep/runtime-venv/bin/python";
+    candidates.emplace_back(home);
+    candidates.back() /= ".local/share/Sythos/OBS-WhisperBleep/runtime-venv/bin/python";
+  }
+#else
+  candidates.emplace_back("/opt/obs-whisperbleep/runtime-venv/bin/python");
+  if (const char* home = std::getenv("HOME"); home != nullptr && home[0] != '\0') {
+    candidates.emplace_back(home);
+    candidates.back() /= ".local/share/Sythos/OBS-WhisperBleep/runtime-venv/bin/python";
+  }
+#endif
+
+  for (const auto& candidate : candidates) {
+    std::error_code error;
+    if (std::filesystem::is_regular_file(candidate, error) && !error) {
+      return candidate.string();
+    }
+  }
+  return "python";
 }
 
 }  // namespace
@@ -804,10 +843,11 @@ std::size_t NativeAudioBridge::dropped_results() const noexcept {
 
 std::unique_ptr<runtime::IWhisperRuntime> make_default_native_runtime() {
   runtime::OpenAIWhisperRuntimeConfig config;
-  config.python_executable = "python";
   if (const char* configured = std::getenv("OBS_WHISPERBLEEP_PYTHON");
       configured != nullptr && configured[0] != '\0') {
     config.python_executable = configured;
+  } else {
+    config.python_executable = packaged_python_executable();
   }
   config.bridge_script_path = bridge_script_path();
   config.runner = runtime::make_persistent_whisper_process_runner();

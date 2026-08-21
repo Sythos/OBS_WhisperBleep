@@ -13,6 +13,11 @@ Minimum requirements:
 - a C++20 compiler supported by the platform;
 - Git.
 
+These are build-time requirements only. Users of a published installer do not
+need CMake, Ninja or a C++ compiler. GitHub Actions supplies the hosted runner
+toolchain for reproducible CI builds; local developers install matching tools
+only when they intend to compile or run the native test lane.
+
 Configure and build:
 
 ```text

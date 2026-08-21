@@ -353,6 +353,16 @@ install(DIRECTORY runtime/ DESTINATION runtime
   FILES_MATCHING
     PATTERN "*.py"
 )
+install(FILES runtime/requirements-cpu.txt
+  installer/windows/install-runtime.ps1
+  DESTINATION runtime
+)
+install(PROGRAMS installer/linux/install.sh
+  DESTINATION share/obs-whisperbleep
+)
+install(FILES runtime/requirements-cpu.txt installer/macos/README.macos
+  DESTINATION share/obs-whisperbleep
+)
 
 set(CPACK_PACKAGE_NAME "OBS-WhisperBleep")
 set(CPACK_PACKAGE_VENDOR "Sythos")
@@ -369,6 +379,12 @@ set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Sythos")
 set(CPACK_DEBIAN_PACKAGE_SECTION "sound")
 set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "${CPACK_PACKAGE_HOMEPAGE_URL}")
 set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS
+  "python3 (>= 3.11), python3-pip, python3-venv, ca-certificates, ffmpeg"
+)
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+  "${CMAKE_CURRENT_SOURCE_DIR}/installer/linux/debian/postinst"
+)
 # The host OBS installation supplies libobs; it is intentionally not copied
 # into this package and must not be inferred as a package-owned dependency.
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)

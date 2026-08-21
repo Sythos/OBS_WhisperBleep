@@ -7,6 +7,8 @@ SetCompressor /SOLID lzma
 ShowInstDetails show
 ShowUninstDetails show
 
+!include LogicLib.nsh
+
 !ifndef STAGE_DIR
   !error "STAGE_DIR must point to an already prepared staging directory."
 !endif
@@ -38,6 +40,18 @@ Section "Install ${PRODUCT_NAME}"
   WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\uninstall-obs-whisperbleep.exe$\""
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
+SectionEnd
+
+Section "Install Python and Whisper runtime (downloads)" SecRuntime
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\runtime\install-runtime.ps1" -NonInteractive'
+  Pop $0
+  ${If} $0 != 0
+    MessageBox MB_ICONEXCLAMATION|MB_OK \
+      "The OBS plugin was installed, but the optional Python/Whisper runtime could not be installed. Run $INSTDIR\runtime\install-runtime.ps1 after fixing network access."
+  ${Else}
+    MessageBox MB_ICONINFORMATION|MB_OK \
+      "The CPU Whisper runtime was installed. Restart OBS Studio before using the plugin."
+  ${EndIf}
 SectionEnd
 
 Section "Uninstall"
