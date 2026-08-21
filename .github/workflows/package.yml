@@ -109,13 +109,19 @@ jobs:
             echo 'The pinned OBS build did not generate obsconfig.h.' >&2
             exit 1
           }
-          cp "$obs_config" "$obs_install/include/obsconfig.h"
-          [[ -n "$obs_lib" && -f "$obs_lib" ]] || {
+          echo "Copying OBS generated header to $obs_install/include/obsconfig.h"
+          if ! install -m 0644 "$obs_config" "$obs_install/include/obsconfig.h"; then
+            echo 'The generated OBS header could not be staged.' >&2
+            exit 1
+          fi
+          echo "Checking validated OBS library: ${obs_lib:-<not found>}"
+          if [[ -z "$obs_lib" || ! -f "$obs_lib" || ! -s "$obs_lib" ]]; then
             echo 'The pinned OBS build did not produce libobs.so.' >&2
             exit 1
-          }
+          fi
           test -f "$obs_install/include/obs/obs.h"
           test -f "$obs_install/include/obs/obs-module.h"
+          echo "Publishing OBS SDK paths to GitHub environment"
           echo "OBS_SDK_DIR=$obs_install" >> "$GITHUB_ENV"
           echo "OBS_LIB=$obs_lib" >> "$GITHUB_ENV"
 
