@@ -5,17 +5,19 @@
 
 #include <obs-module.h>
 #include <obs.h>
+#include <media-io/audio-io.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <cstdlib>
 #include <limits>
 #include <memory>
-#include <sstream>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -34,15 +36,45 @@ constexpr std::uint64_t kNanosecondsPerSecond = 1'000'000'000ULL;
 constexpr std::uint64_t kProcessingDelayNanoseconds = 1'500'000'000ULL;
 constexpr std::uint64_t kTimestampJumpNanoseconds = 1'000'000'000ULL;
 constexpr std::size_t kResultQueueCapacity = 96;
+constexpr std::size_t kIngressQueueCapacity = 32;
 constexpr std::size_t kMaximumOutputFrames = 4096;
 
+using AudioPlane = std::array<float, kMaximumOutputFrames>;
+
+/*
+ * RawPacketSlot belongs exclusively to the OBS callback. It is deliberately
+ * fixed-size: capture_raw() must not resize, allocate or free memory.
+ */
 struct RawPacketSlot {
   bool valid = false;
   std::int64_t first_frame = 0;
   std::uint64_t timestamp = 0;
   std::uint32_t frames = 0;
   std::uint16_t channels = 0;
-  std::array<std::vector<float>, MAX_AV_PLANES> planes;
+  std::array<AudioPlane, MAX_AV_PLANES> planes{};
+};
+
+/*
+ * IngressPacketSlot is a second preallocated pool. The callback copies a
+ * packet here and publishes its index; submit_loop() later constructs the
+ * vector-backed core AudioFrame away from the realtime thread.
+ */
+struct IngressPacketSlot {
+  std::int64_t first_frame = 0;
+  std::uint32_t frames = 0;
+  std::uint16_t channels = 0;
+  bool discontinuity = false;
+  std::array<AudioPlane, MAX_AV_PLANES> planes{};
+};
+
+struct ResultSlot {
+  /*
+   * This optional is only emplaced/reset by the pipeline worker. The OBS
+   * callback only reads it and advances result_read_index_ after copying the
+   * samples into fixed output storage, so vector destruction never occurs on
+   * the realtime thread.
+   */
+  std::optional<core::EndToEndAudioResult> result;
 };
 
 [[nodiscard]] std::vector<std::string> split_phrases(
@@ -87,15 +119,41 @@ struct RawPacketSlot {
   return frame_count * kNanosecondsPerSecond / sample_rate;
 }
 
-[[nodiscard]] std::uint16_t channel_count(
-    const obs_audio_data& audio) noexcept {
-  std::uint16_t channels = 0;
-  for (; channels < MAX_AV_PLANES; ++channels) {
-    if (audio.data[channels] == nullptr) {
-      break;
-    }
+[[nodiscard]] std::uint64_t add_timestamp(
+    const std::uint64_t timestamp, const std::uint64_t duration) noexcept {
+  if (duration > std::numeric_limits<std::uint64_t>::max() - timestamp) {
+    return std::numeric_limits<std::uint64_t>::max();
   }
-  return channels;
+  return timestamp + duration;
+}
+
+[[nodiscard]] std::size_t next_index(const std::size_t index,
+                                     const std::size_t capacity) noexcept {
+  return index + 1U == capacity ? 0U : index + 1U;
+}
+
+/*
+ * OBS normalizes source audio before filter_audio() and exposes it as planar
+ * float data only when the global audio output format is
+ * AUDIO_FORMAT_FLOAT_PLANAR. obs_audio_data itself carries no format field,
+ * so accepting an unknown format would reinterpret arbitrary bytes as float.
+ */
+[[nodiscard]] bool host_audio_matches(const std::uint32_t sample_rate,
+                                      const std::uint16_t channels) noexcept {
+  auto* output = obs_get_audio();
+  if (output == nullptr) {
+    return false;
+  }
+  const auto* info = audio_output_get_info(output);
+  if (info == nullptr || info->format != AUDIO_FORMAT_FLOAT_PLANAR ||
+      info->samples_per_sec != sample_rate) {
+    return false;
+  }
+  const auto speaker_channels = get_audio_channels(info->speakers);
+  const auto actual_channels =
+      speaker_channels == 0 ? audio_output_get_channels(output)
+                             : speaker_channels;
+  return actual_channels == channels;
 }
 
 [[nodiscard]] core::EndToEndAudioPipelineConfig make_pipeline_config(
@@ -139,34 +197,42 @@ class NativeAudioBridge::Impl final {
         runtime_(runtime == nullptr ? make_default_native_runtime()
                                      : std::move(runtime)),
         enabled_(settings_.enabled) {
-    for (auto& plane : output_planes_) {
-      plane.reserve(kMaximumOutputFrames);
-    }
-    for (auto& slot : raw_slots_) {
-      for (auto& plane : slot.planes) {
-        plane.resize(kMaximumOutputFrames);
-      }
-    }
     pipeline_ = build_pipeline(settings_);
   }
 
   ~Impl() {
     stop();
     pipeline_.reset();
-    clear_results_waiting();
   }
 
   [[nodiscard]] bool start() {
-    if (pipeline_ == nullptr) {
+    if (pipeline_ == nullptr || pipeline_->running()) {
       return false;
     }
-    if (!pipeline_->start()) {
-      return false;
-    }
+
+    reset_ingress_queue();
+    reset_stream();
     runtime_ready_.store(false, std::memory_order_release);
+    ingress_stop_.store(false, std::memory_order_release);
+    if (!pipeline_->start()) {
+      ingress_stop_.store(true, std::memory_order_release);
+      return false;
+    }
+
+    try {
+      ingress_thread_ = std::thread([this] { submit_loop(); });
+    } catch (...) {
+      ingress_stop_.store(true, std::memory_order_release);
+      pipeline_->stop();
+      return false;
+    }
+    accepting_.store(true, std::memory_order_release);
+
     try {
       runtime_thread_ = std::thread([this] { initialize_runtime(); });
     } catch (...) {
+      accepting_.store(false, std::memory_order_release);
+      stop_ingress_thread();
       pipeline_->stop();
       return false;
     }
@@ -174,20 +240,30 @@ class NativeAudioBridge::Impl final {
   }
 
   void stop() noexcept {
+    accepting_.store(false, std::memory_order_release);
+    runtime_ready_.store(false, std::memory_order_release);
+    stop_ingress_thread();
+
+    /*
+     * The submit adapter is joined before the core worker is stopped. This
+     * guarantees that no adapter thread can call submit() after pipeline_ has
+     * begun shutdown. EndToEndAudioPipeline::stop() may still wait for an
+     * already accepted Whisper operation; that lifecycle limitation is
+     * outside the OBS realtime callback and is documented for M7.
+     */
     if (pipeline_ != nullptr) {
-      runtime_ready_.store(false, std::memory_order_release);
       pipeline_->stop();
     }
     if (runtime_thread_.joinable()) {
       runtime_thread_.join();
     }
+    clear_results_waiting();
   }
 
   void update(FilterSettings settings) {
     // OBS serializes settings updates with source lifecycle callbacks. Stop
     // before rebuilding so no worker callback can outlive the old pipeline.
     stop();
-    clear_results_waiting();
     settings_ = std::move(settings);
     enabled_.store(settings_.enabled, std::memory_order_release);
     reset_stream();
@@ -199,65 +275,60 @@ class NativeAudioBridge::Impl final {
   }
 
   [[nodiscard]] obs_audio_data* filter_audio(obs_audio_data* audio) noexcept {
-    if (audio == nullptr || !enabled_.load(std::memory_order_acquire) ||
+    if (audio == nullptr || !accepting_.load(std::memory_order_acquire) ||
+        !enabled_.load(std::memory_order_acquire) ||
         pipeline_ == nullptr || !pipeline_->running() || audio->frames == 0) {
       return audio;
     }
 
-    try {
-      const auto channels = channel_count(*audio);
-      if (channels == 0 || channels != channels_ ||
-          channels > MAX_AV_PLANES || audio->frames > kMaximumOutputFrames) {
+    /*
+     * obs_audio_data has no format metadata. Pass through unless the current
+     * OBS output explicitly reports planar float and every expected plane is
+     * present. This prevents undefined reinterpretation of packed formats.
+     */
+    if (!host_audio_matches(sample_rate_, channels_) || channels_ == 0 ||
+        channels_ > MAX_AV_PLANES || audio->frames > kMaximumOutputFrames) {
+      return audio;
+    }
+    for (std::size_t channel = 0; channel < channels_; ++channel) {
+      if (audio->data[channel] == nullptr) {
         return audio;
       }
+    }
 
+    try {
       const auto frame_index = begin_stream_block(*audio);
       if (stream_discontinuity_) {
-        for (auto& slot : raw_slots_) {
-          slot.valid = false;
-        }
-        raw_read_index_ = 0;
-        raw_write_index_ = 0;
-        raw_count_ = 0;
+        clear_raw_ring();
       }
-      if (!capture_raw(*audio, frame_index, channels)) {
+
+      const bool raw_captured = capture_raw(*audio, frame_index, channels_);
+      const bool ingress_captured =
+          raw_captured && capture_ingress(*audio, frame_index, channels_);
+      const auto current_end =
+          add_timestamp(audio->timestamp,
+                        duration_nanoseconds(audio->frames, sample_rate_));
+
+      if (!raw_captured) {
         return audio;
       }
-      core::AudioFrame frame;
-      frame.first_frame = frame_index;
-      frame.discontinuity = stream_discontinuity_;
-      frame.audio.sample_rate = sample_rate_;
-      frame.audio.channels = channels;
-      const auto sample_count = static_cast<std::size_t>(audio->frames) *
-                                static_cast<std::size_t>(channels);
-      frame.audio.samples.resize(sample_count);
-      for (std::size_t frame_offset = 0; frame_offset < audio->frames;
-           ++frame_offset) {
-        for (std::size_t channel = 0; channel < channels; ++channel) {
-          const auto* samples = reinterpret_cast<const float*>(
-              audio->data[channel]);
-          frame.audio.samples[frame_offset * channels + channel] =
-              samples[frame_offset];
-        }
-      }
 
-      // submit() is bounded and non-blocking. A rejected frame remains safe
-      // pass-through audio and is counted by the core queue.
-      (void)pipeline_->submit(std::move(frame));
-
-      const auto current_end = audio->timestamp +
-                               duration_nanoseconds(audio->frames, sample_rate_);
+      /*
+       * An ingress rejection is intentionally not a reason to return the
+       * current packet immediately: the raw delay ring can still emit one
+       * bounded delayed block and keeps audio/video timing stable.
+       */
+      (void)ingress_captured;
       return consume_ready(audio, current_end);
     } catch (...) {
-      // No exception may cross the OBS realtime boundary. Returning the host
-      // packet is the deterministic failure policy for allocation or format
-      // errors.
+      // No exception may cross the OBS realtime boundary.
       return audio;
     }
   }
 
   [[nodiscard]] bool running() const noexcept {
-    return pipeline_ != nullptr && pipeline_->running();
+    return accepting_.load(std::memory_order_acquire) &&
+           pipeline_ != nullptr && pipeline_->running();
   }
 
   [[nodiscard]] std::size_t queued_frames() const noexcept {
@@ -265,7 +336,10 @@ class NativeAudioBridge::Impl final {
   }
 
   [[nodiscard]] std::size_t dropped_frames() const noexcept {
-    return pipeline_ == nullptr ? 0 : pipeline_->dropped_frames();
+    const auto pipeline_dropped =
+        pipeline_ == nullptr ? 0 : pipeline_->dropped_frames();
+    return pipeline_dropped +
+           dropped_ingress_packets_.load(std::memory_order_relaxed);
   }
 
   [[nodiscard]] std::size_t dropped_results() const noexcept {
@@ -301,87 +375,175 @@ class NativeAudioBridge::Impl final {
     }
   }
 
-  void on_result(core::EndToEndAudioResult result) noexcept {
-    // The worker must never wait behind the realtime consumer. If the
-    // consumer currently owns the exchange, drop this result and let OBS keep
-    // the original block.
-    if (result_lock_.test_and_set(std::memory_order_acquire)) {
-      dropped_results_.fetch_add(1, std::memory_order_relaxed);
+  void submit_loop() noexcept {
+    for (;;) {
+      /*
+       * Pending adapter slots have not entered the core queue yet. Dropping
+       * them during lifecycle shutdown is safe because their matching raw
+       * packets remain pass-through candidates and it keeps stop bounded.
+       */
+      if (ingress_stop_.load(std::memory_order_acquire)) {
+        return;
+      }
+      const auto read = ingress_read_index_.load(std::memory_order_relaxed);
+      const auto write = ingress_write_index_.load(std::memory_order_acquire);
+      if (read != write) {
+        submit_packet(ingress_slots_[read]);
+        ingress_read_index_.store(next_index(read, kIngressQueueCapacity),
+                                  std::memory_order_release);
+        continue;
+      }
+
+      /*
+       * The callback only calls notify_one(); it never takes this mutex or
+       * waits. The predicate closes the enqueue-before-wait race.
+       */
+      std::unique_lock lock(ingress_wait_mutex_);
+      ingress_wait_.wait(lock, [this] {
+        return ingress_stop_.load(std::memory_order_acquire) ||
+               ingress_read_index_.load(std::memory_order_relaxed) !=
+                   ingress_write_index_.load(std::memory_order_acquire);
+      });
+    }
+  }
+
+  void submit_packet(const IngressPacketSlot& slot) noexcept {
+    if (!runtime_ready_.load(std::memory_order_acquire)) {
+      submit_gap_pending_.store(true, std::memory_order_release);
+      dropped_ingress_packets_.fetch_add(1, std::memory_order_relaxed);
       return;
     }
 
     try {
-      if (result_reset_pending_.exchange(false, std::memory_order_acq_rel)) {
-        results_.clear();
+      core::AudioFrame frame;
+      frame.first_frame = slot.first_frame;
+      frame.discontinuity = slot.discontinuity;
+      frame.audio.sample_rate = sample_rate_;
+      frame.audio.channels = slot.channels;
+      const auto sample_count =
+          static_cast<std::size_t>(slot.frames) * slot.channels;
+      frame.audio.samples.resize(sample_count);
+      for (std::size_t frame_offset = 0; frame_offset < slot.frames;
+           ++frame_offset) {
+        for (std::size_t channel = 0; channel < slot.channels; ++channel) {
+          frame.audio.samples[frame_offset * slot.channels + channel] =
+              slot.planes[channel][frame_offset];
+        }
       }
-      if (results_.size() >= kResultQueueCapacity) {
-        results_.pop_front();
-        dropped_results_.fetch_add(1, std::memory_order_relaxed);
+
+      if (!pipeline_->submit(std::move(frame))) {
+        submit_gap_pending_.store(true, std::memory_order_release);
       }
-      results_.push_back(std::move(result));
+    } catch (...) {
+      submit_gap_pending_.store(true, std::memory_order_release);
+      dropped_ingress_packets_.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  void stop_ingress_thread() noexcept {
+    ingress_stop_.store(true, std::memory_order_release);
+    ingress_wait_.notify_one();
+    if (ingress_thread_.joinable()) {
+      ingress_thread_.join();
+    }
+    reset_ingress_queue();
+  }
+
+  void reset_ingress_queue() noexcept {
+    ingress_read_index_.store(0, std::memory_order_relaxed);
+    ingress_write_index_.store(0, std::memory_order_relaxed);
+    submit_gap_pending_.store(false, std::memory_order_release);
+  }
+
+  void on_result(core::EndToEndAudioResult result) noexcept {
+    /*
+     * A fixed SPSC handoff avoids a deque allocation in the OBS callback.
+     * The worker owns result construction/destruction; the callback only
+     * reads a ready slot and copies its samples to output_planes_.
+     */
+    const auto write = result_write_index_.load(std::memory_order_relaxed);
+    const auto next = next_index(write, kResultQueueCapacity);
+    const auto read = result_read_index_.load(std::memory_order_acquire);
+    if (next == read) {
+      dropped_results_.fetch_add(1, std::memory_order_relaxed);
+      return;
+    }
+
+    auto& slot = result_slots_[write];
+    try {
+      slot.result.reset();
+      slot.result.emplace(std::move(result));
+      result_write_index_.store(next, std::memory_order_release);
     } catch (...) {
       dropped_results_.fetch_add(1, std::memory_order_relaxed);
     }
-    result_lock_.clear(std::memory_order_release);
   }
 
   [[nodiscard]] obs_audio_data* consume_ready(
       obs_audio_data* original, const std::uint64_t current_end) noexcept {
-    // test_and_set is deliberately not a spinlock: the callback immediately
-    // falls back to the original OBS packet if the worker is publishing.
-    if (result_lock_.test_and_set(std::memory_order_acquire)) {
-      return original;
-    }
-
     obs_audio_data* output = original;
     try {
       if (result_reset_pending_.exchange(false, std::memory_order_acq_rel)) {
-        results_.clear();
+        discard_results();
       }
       if (raw_count_ == 0) {
-        result_lock_.clear(std::memory_order_release);
         return original;
       }
 
       RawPacketSlot& slot = raw_slots_[raw_read_index_];
-      const auto slot_end = slot.timestamp +
-                            duration_nanoseconds(slot.frames, sample_rate_);
+      const auto slot_end =
+          add_timestamp(slot.timestamp,
+                        duration_nanoseconds(slot.frames, sample_rate_));
       if (current_end < slot_end ||
           current_end - slot_end < kProcessingDelayNanoseconds) {
-        // Keep the first 1.5 seconds silent while the delay ring fills. This
-        // is the only point at which the bridge returns nullptr: afterwards
-        // exactly one delayed block is returned for each incoming block.
-        result_lock_.clear(std::memory_order_release);
+        // Keep the first 1.5 seconds silent while the delay ring fills.
         return nullptr;
       }
 
-      while (!results_.empty() &&
-             results_.front().output.first_frame < slot.first_frame) {
-        results_.pop_front();
+      auto result_index = result_read_index_.load(std::memory_order_relaxed);
+      const auto result_end =
+          result_write_index_.load(std::memory_order_acquire);
+      while (result_index != result_end) {
+        auto& result_slot = result_slots_[result_index];
+        if (!result_slot.result.has_value()) {
+          result_index = next_index(result_index, kResultQueueCapacity);
+          result_read_index_.store(result_index, std::memory_order_release);
+          continue;
+        }
+        const auto result_first = result_slot.result->output.first_frame;
+        if (result_first < slot.first_frame) {
+          result_index = next_index(result_index, kResultQueueCapacity);
+          result_read_index_.store(result_index, std::memory_order_release);
+          continue;
+        }
+        if (result_first == slot.first_frame) {
+          const bool copied =
+              copy_to_output(*result_slot.result, slot.timestamp);
+          result_index = next_index(result_index, kResultQueueCapacity);
+          result_read_index_.store(result_index, std::memory_order_release);
+          if (copied) {
+            output = &output_packet_;
+          }
+        }
+        break;
       }
 
-      bool copied = false;
-      if (!results_.empty() &&
-          results_.front().output.first_frame == slot.first_frame) {
-        auto result = std::move(results_.front());
-        results_.pop_front();
-        copied = copy_to_output(result, slot.timestamp);
-      }
-      if (!copied) {
-        copied = copy_raw_to_output(slot);
+      if (output == original) {
+        (void)copy_raw_to_output(slot);
       }
 
       slot.valid = false;
-      raw_read_index_ = (raw_read_index_ + 1U) % kResultQueueCapacity;
+      raw_read_index_ = next_index(raw_read_index_, kResultQueueCapacity);
       --raw_count_;
-      if (copied) {
-        output = &output_packet_;
-      }
+      return output;
     } catch (...) {
-      output = original;
+      return original;
     }
-    result_lock_.clear(std::memory_order_release);
-    return output;
+  }
+
+  void discard_results() noexcept {
+    const auto write = result_write_index_.load(std::memory_order_acquire);
+    result_read_index_.store(write, std::memory_order_release);
   }
 
   [[nodiscard]] bool copy_to_output(
@@ -396,7 +558,6 @@ class NativeAudioBridge::Impl final {
     }
 
     for (std::size_t channel = 0; channel < channels_; ++channel) {
-      output_planes_[channel].resize(audio.frame_count());
       for (std::size_t frame = 0; frame < audio.frame_count(); ++frame) {
         output_planes_[channel][frame] =
             audio.samples[frame * audio.channels + channel];
@@ -419,10 +580,6 @@ class NativeAudioBridge::Impl final {
       return false;
     }
     for (std::size_t channel = 0; channel < channels_; ++channel) {
-      if (slot.planes[channel].size() < slot.frames) {
-        return false;
-      }
-      output_planes_[channel].resize(slot.frames);
       std::copy_n(slot.planes[channel].data(), slot.frames,
                   output_planes_[channel].data());
       output_packet_.data[channel] = reinterpret_cast<std::uint8_t*>(
@@ -440,16 +597,9 @@ class NativeAudioBridge::Impl final {
                                  const std::int64_t first_frame,
                                  const std::uint16_t channels) noexcept {
     if (raw_count_ >= kResultQueueCapacity) {
-      // Preserve bounded memory and recover deterministically. The current
-      // packet remains pass-through; the next packet starts a fresh delay
-      // generation rather than overwriting audio still awaiting output.
-      for (auto& slot : raw_slots_) {
-        slot.valid = false;
-      }
-      raw_read_index_ = 0;
-      raw_write_index_ = 0;
-      raw_count_ = 0;
+      clear_raw_ring();
       result_reset_pending_.store(true, std::memory_order_release);
+      submit_gap_pending_.store(true, std::memory_order_release);
       dropped_results_.fetch_add(1, std::memory_order_relaxed);
       return false;
     }
@@ -458,28 +608,56 @@ class NativeAudioBridge::Impl final {
     if (slot.valid) {
       return false;
     }
-    slot.valid = true;
     slot.first_frame = first_frame;
     slot.timestamp = audio.timestamp;
     slot.frames = audio.frames;
     slot.channels = channels;
     for (std::size_t channel = 0; channel < channels; ++channel) {
-      auto& destination = slot.planes[channel];
-      if (destination.size() < audio.frames) {
-        return false;
-      }
-      const auto* source = reinterpret_cast<const float*>(audio.data[channel]);
+      const auto* source =
+          reinterpret_cast<const float*>(audio.data[channel]);
       if (source == nullptr) {
         slot.valid = false;
         return false;
       }
-      std::copy_n(source, audio.frames, destination.data());
+      std::copy_n(source, audio.frames, slot.planes[channel].data());
     }
-    for (std::size_t channel = channels; channel < MAX_AV_PLANES; ++channel) {
-      slot.planes[channel].clear();
-    }
-    raw_write_index_ = (raw_write_index_ + 1U) % kResultQueueCapacity;
+    slot.valid = true;
+    raw_write_index_ = next_index(raw_write_index_, kResultQueueCapacity);
     ++raw_count_;
+    return true;
+  }
+
+  [[nodiscard]] bool capture_ingress(const obs_audio_data& audio,
+                                     const std::int64_t first_frame,
+                                     const std::uint16_t channels) noexcept {
+    const auto write = ingress_write_index_.load(std::memory_order_relaxed);
+    const auto next = next_index(write, kIngressQueueCapacity);
+    const auto read = ingress_read_index_.load(std::memory_order_acquire);
+    if (next == read) {
+      submit_gap_pending_.store(true, std::memory_order_release);
+      dropped_ingress_packets_.fetch_add(1, std::memory_order_relaxed);
+      return false;
+    }
+
+    auto& slot = ingress_slots_[write];
+    slot.first_frame = first_frame;
+    slot.frames = audio.frames;
+    slot.channels = channels;
+    slot.discontinuity =
+        stream_discontinuity_ ||
+        submit_gap_pending_.exchange(false, std::memory_order_acq_rel);
+    for (std::size_t channel = 0; channel < channels; ++channel) {
+      const auto* source =
+          reinterpret_cast<const float*>(audio.data[channel]);
+      if (source == nullptr) {
+        submit_gap_pending_.store(true, std::memory_order_release);
+        dropped_ingress_packets_.fetch_add(1, std::memory_order_relaxed);
+        return false;
+      }
+      std::copy_n(source, audio.frames, slot.planes[channel].data());
+    }
+    ingress_write_index_.store(next, std::memory_order_release);
+    ingress_wait_.notify_one();
     return true;
   }
 
@@ -488,14 +666,11 @@ class NativeAudioBridge::Impl final {
     const auto duration = duration_nanoseconds(audio.frames, sample_rate_);
     bool discontinuity = false;
     if (!has_stream_) {
-      base_timestamp_ = audio.timestamp;
       has_stream_ = true;
     } else if (audio.timestamp < last_end_timestamp_ ||
                audio.timestamp - last_end_timestamp_ >
                    kTimestampJumpNanoseconds) {
       discontinuity = true;
-      base_timestamp_ = audio.timestamp;
-      next_frame_ = 0;
       result_reset_pending_.store(true, std::memory_order_release);
     }
 
@@ -503,40 +678,46 @@ class NativeAudioBridge::Impl final {
     const auto first_frame = next_frame_;
     if (audio.frames >
         static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) -
-            static_cast<std::uint64_t>(std::max<std::int64_t>(
-                first_frame, 0))) {
+            static_cast<std::uint64_t>(
+                std::max<std::int64_t>(first_frame, 0))) {
       next_frame_ = 0;
       stream_discontinuity_ = true;
       result_reset_pending_.store(true, std::memory_order_release);
     } else {
       next_frame_ += static_cast<std::int64_t>(audio.frames);
     }
-    last_end_timestamp_ = audio.timestamp + duration;
-    return stream_discontinuity_ && first_frame != 0 ? 0 : first_frame;
+    last_end_timestamp_ = add_timestamp(audio.timestamp, duration);
+    /*
+     * Keep the host-frame sequence monotonic across timestamp discontinuities.
+     * The core timeline still receives discontinuity=true and advances its
+     * generation, while unique frame ids prevent a late result from the old
+     * epoch from matching a new packet after the 1.5 second delay.
+     */
+    return first_frame;
   }
 
-  void reset_stream() noexcept {
-    has_stream_ = false;
-    stream_discontinuity_ = false;
-    base_timestamp_ = 0;
-    last_end_timestamp_ = 0;
-    next_frame_ = 0;
+  void clear_raw_ring() noexcept {
     for (auto& slot : raw_slots_) {
       slot.valid = false;
     }
     raw_read_index_ = 0;
     raw_write_index_ = 0;
     raw_count_ = 0;
+  }
+
+  void reset_stream() noexcept {
+    has_stream_ = false;
+    stream_discontinuity_ = false;
+    last_end_timestamp_ = 0;
+    next_frame_ = 0;
+    clear_raw_ring();
     result_reset_pending_.store(true, std::memory_order_release);
   }
 
   void clear_results_waiting() noexcept {
-    while (result_lock_.test_and_set(std::memory_order_acquire)) {
-      std::this_thread::yield();
-    }
-    results_.clear();
+    const auto write = result_write_index_.load(std::memory_order_acquire);
+    result_read_index_.store(write, std::memory_order_release);
     result_reset_pending_.store(false, std::memory_order_release);
-    result_lock_.clear(std::memory_order_release);
   }
 
   FilterSettings settings_;
@@ -545,23 +726,34 @@ class NativeAudioBridge::Impl final {
   std::unique_ptr<runtime::IWhisperRuntime> runtime_;
   std::unique_ptr<core::EndToEndAudioPipeline> pipeline_;
   std::atomic_bool enabled_{true};
+  std::atomic_bool accepting_{false};
   std::atomic_bool runtime_ready_{false};
   std::thread runtime_thread_;
 
-  std::atomic_flag result_lock_ = ATOMIC_FLAG_INIT;
+  std::atomic_bool ingress_stop_{true};
+  std::thread ingress_thread_;
+  std::condition_variable ingress_wait_;
+  std::mutex ingress_wait_mutex_;
+  std::array<IngressPacketSlot, kIngressQueueCapacity> ingress_slots_{};
+  std::atomic<std::size_t> ingress_read_index_{0};
+  std::atomic<std::size_t> ingress_write_index_{0};
+  std::atomic_bool submit_gap_pending_{false};
+  std::atomic<std::size_t> dropped_ingress_packets_{0};
+
+  std::array<ResultSlot, kResultQueueCapacity> result_slots_{};
+  std::atomic<std::size_t> result_read_index_{0};
+  std::atomic<std::size_t> result_write_index_{0};
   std::atomic_bool result_reset_pending_{false};
-  std::deque<core::EndToEndAudioResult> results_;
   std::atomic<std::size_t> dropped_results_{0};
 
   bool has_stream_ = false;
   bool stream_discontinuity_ = false;
-  std::uint64_t base_timestamp_ = 0;
   std::uint64_t last_end_timestamp_ = 0;
   std::int64_t next_frame_ = 0;
 
-  std::array<std::vector<float>, MAX_AV_PLANES> output_planes_;
+  std::array<AudioPlane, MAX_AV_PLANES> output_planes_{};
   obs_audio_data output_packet_{};
-  std::array<RawPacketSlot, kResultQueueCapacity> raw_slots_;
+  std::array<RawPacketSlot, kResultQueueCapacity> raw_slots_{};
   std::size_t raw_read_index_ = 0;
   std::size_t raw_write_index_ = 0;
   std::size_t raw_count_ = 0;

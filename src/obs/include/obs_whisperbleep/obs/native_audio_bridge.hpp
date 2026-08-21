@@ -16,11 +16,13 @@ namespace obs_whisperbleep::obs {
 /**
  * Native OBS adapter for the bounded asynchronous audio pipeline.
  *
- * The OBS callback only copies the incoming planar float block, attempts a
- * non-blocking queue submission and consumes a result that is old enough for
- * the configured 1.5 second audio budget. Whisper, matching and rendering run
- * on the pipeline worker. If any boundary is unavailable, the caller keeps
- * the original OBS packet as pass-through audio.
+ * The OBS callback only validates and copies the incoming planar float block
+ * into fixed-size storage, publishes a non-blocking ingress index and
+ * consumes a result that is old enough for the configured 1.5 second audio
+ * budget. A separate adapter thread constructs the vector-backed core frame;
+ * Whisper, matching and rendering run on the pipeline worker. If the host
+ * format, runtime or any bounded queue is unavailable, the caller keeps the
+ * original OBS packet or a delayed raw copy as pass-through audio.
  */
 class NativeAudioBridge final {
  public:
@@ -42,9 +44,9 @@ class NativeAudioBridge final {
   void update(FilterSettings settings);
 
   /**
-   * Captures and submits one OBS block without waiting. A non-null return
-   * points either to the original packet or to bridge-owned output storage
-   * that remains valid until the next call.
+   * Captures one OBS block without waiting. A non-null return points either to
+   * the original packet or to bridge-owned output storage that remains valid
+   * until the next call. Unsupported host formats are always passed through.
    */
   [[nodiscard]] obs_audio_data* filter_audio(obs_audio_data* audio) noexcept;
 
