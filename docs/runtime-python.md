@@ -36,7 +36,7 @@ The Windows NSIS installer runs `runtime/install-runtime.ps1` after the plugin
 files are copied. It uses WinGet for Python 3.11 when necessary, creates a
 machine-wide virtual environment under `C:\ProgramData\Sythos\OBS-WhisperBleep`,
 and installs the pinned CPU requirements. Network access is required for this
-optional step; a failed download leaves the plugin installed with safe
+automatic step; a failed download leaves the plugin installed with safe
 pass-through behavior and prints a retry command.
 
 The Ubuntu/Debian package declares `python3 (>= 3.11)`, `python3-pip`,

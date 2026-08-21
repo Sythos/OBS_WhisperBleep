@@ -41,7 +41,7 @@ ready. The native Whisper runtime is installed by an explicit platform
 bootstrap step, while Windows/Linux CUDA distribution decisions and macOS
 signing and notarization remain outside this unsigned package boundary.
 Tag-gated GitHub publication is implemented for the validated installer
-payloads and the optional runtime container.
+payloads.
 
 => Release artifact milestone
 
@@ -158,11 +158,4 @@ stub under a native package name. The default stub artifacts remain available
 for deterministic fallback and boundary testing. The macOS release payload
 remains the unsigned universal archive described above.
 
-=> Runtime container publication
 
-The release workflow also publishes a Linux x86_64 CPU runtime image to
-`ghcr.io/sythos/obs-whisperbleep-runtime`. The image contains Python 3.11,
-OpenAI Whisper, the CPU-only PyTorch wheel, FFmpeg and the JSON-lines bridge;
-it contains no model weights and does not replace the native OBS plugin. The
-immutable version tag and `latest` are pushed only after the installer package
-lane succeeds.
