@@ -49,6 +49,7 @@ jobs:
             build-essential cmake ninja-build git pkg-config ccache ca-certificates \
             dpkg-dev extra-cmake-modules libsimde-dev uthash-dev libjansson-dev \
             zlib1g-dev uuid-dev \
+            libx11-dev libx11-xcb-dev libxcb1-dev \
             libavcodec-dev libavformat-dev libavutil-dev \
             libswresample-dev libswscale-dev
 
@@ -72,6 +73,7 @@ jobs:
               -DENABLE_SCRIPTING=OFF \
               -DENABLE_VLC=OFF \
               -DENABLE_WAYLAND=OFF \
+              -DENABLE_PULSEAUDIO=OFF \
               -DENABLE_WEBRTC=OFF \
               -DENABLE_AJA=OFF
           )
