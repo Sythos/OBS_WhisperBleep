@@ -45,13 +45,13 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends dpkg-dev
+          sudo apt-get install --yes --no-install-recommends dpkg-dev extra-cmake-modules
 
       - name: Build pinned OBS libobs SDK (native lane)
         if: ${{ inputs.native_obs == true }}
         shell: bash
         env:
-          OBS_STUDIO_VERSION: 32.2.1
+          OBS_STUDIO_VERSION: 32.1.2
         run: |
           set -euo pipefail
           obs_source="$RUNNER_TEMP/obs-studio"
@@ -266,7 +266,7 @@ jobs:
         if: ${{ inputs.native_obs == true }}
         shell: pwsh
         env:
-          OBS_STUDIO_VERSION: 32.2.1
+          OBS_STUDIO_VERSION: 32.1.2
         run: |
           $obsSource = Join-Path $env:RUNNER_TEMP 'obs-studio'
           $obsInstall = Join-Path $env:RUNNER_TEMP 'obs-install'
@@ -446,45 +446,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Build pinned OBS libobs SDK (native lane)
-        if: ${{ inputs.native_obs == true }}
-        shell: bash
-        env:
-          OBS_STUDIO_VERSION: 32.2.1
-        run: |
-          set -euo pipefail
-          obs_source="$RUNNER_TEMP/obs-studio"
-          obs_install="$RUNNER_TEMP/obs-install"
-          git clone --depth 1 --branch "$OBS_STUDIO_VERSION" --recurse-submodules \
-            https://github.com/obsproject/obs-studio.git "$obs_source"
-          (
-            cd "$obs_source"
-            cmake --preset macos-ci \
-              -DCMAKE_OSX_ARCHITECTURES='x86_64;arm64' \
-              -DENABLE_FRONTEND=OFF \
-              -DENABLE_PLUGINS=OFF \
-              -DENABLE_BROWSER=OFF \
-              -DENABLE_SCRIPTING=OFF \
-              -DENABLE_VLC=OFF \
-              -DENABLE_WAYLAND=OFF \
-              -DENABLE_WEBRTC=OFF \
-              -DENABLE_AJA=OFF
-          )
-          cmake --build "$obs_source/build_macos" --target libobs --config Release --parallel
-          cmake --install "$obs_source/build_macos" --config Release --prefix "$obs_install" --component Runtime
-          cmake --install "$obs_source/build_macos" --config Release --prefix "$obs_install" --component Development
-          obs_lib="$(find "$obs_source/build_macos" -type f -name 'libobs*.dylib' | head -n 1)"
-          [[ -n "$obs_lib" && -f "$obs_lib" ]] || {
-            echo 'The pinned OBS build did not produce a libobs dylib.' >&2
-            exit 1
-          }
-          test -f "$obs_install/include/obs/obs.h"
-          test -f "$obs_install/include/obs/obs-module.h"
-          echo "OBS_SDK_DIR=$obs_install" >> "$GITHUB_ENV"
-          echo "OBS_LIB=$obs_lib" >> "$GITHUB_ENV"
-
       - name: Configure universal stub build
-        if: ${{ inputs.native_obs != true }}
+        # macOS remains an unsigned universal archive. OBS native builds on
+        # hosted runners require Apple's current SDK/signing toolchain and are
+        # intentionally outside the unsigned installer lane.
         shell: bash
         run: |
           set -euo pipefail
@@ -496,25 +461,6 @@ jobs:
             -DOBS_WHISPERBLEEP_BUILD_TESTS=ON \
             -DOBS_WHISPERBLEEP_BUILD_PLUGIN_STUB=ON \
             -DOBS_WHISPERBLEEP_BUILD_NATIVE_MODULE=OFF \
-            -DOBS_WHISPERBLEEP_ENABLE_CUDA=OFF \
-            -DWHISPER_RUNTIME=stub
-
-      - name: Configure universal native OBS build
-        if: ${{ inputs.native_obs == true }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(tr -d '[:space:]' < VERSION)"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES='x86_64;arm64' \
-            -DOBS_WHISPERBLEEP_BUILD_TESTS=ON \
-            -DOBS_WHISPERBLEEP_BUILD_PLUGIN_STUB=OFF \
-            -DOBS_WHISPERBLEEP_BUILD_NATIVE_MODULE=ON \
-            -DOBS_WHISPERBLEEP_PLUGIN_INSTALL_DIR=obs-plugins \
-            -DOBS_SDK_DIR="$OBS_SDK_DIR" \
-            -DOBS_LIB="$OBS_LIB" \
             -DOBS_WHISPERBLEEP_ENABLE_CUDA=OFF \
             -DWHISPER_RUNTIME=stub
 

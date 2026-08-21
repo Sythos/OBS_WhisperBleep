@@ -104,12 +104,17 @@ portable plugin stub. This keeps deterministic CI green when no OBS development
 environment is available. A deliberate native run can be requested through the
 `native_obs` boolean input on `workflow_dispatch` or `workflow_call`.
 
-The native lane checks out the pinned OBS Studio `32.2.1` source tag with its
-recursive submodules, lets the OBS CMake preset fetch its verified build
-dependencies, builds only `libobs`, and uses the resulting headers and library
-as an explicit `OBS_SDK_DIR`/`OBS_LIB` pair for this project. OBS binaries are
-not copied into the WhisperBleep packages; the target OBS installation remains
-the host for `libobs` and its dependencies.
+The native Linux and Windows lane checks out the pinned OBS Studio `32.1.2`
+source tag with its recursive submodules, lets the OBS CMake preset fetch its
+verified build dependencies, builds only `libobs`, and uses the resulting
+headers and library as an explicit `OBS_SDK_DIR`/`OBS_LIB` pair for this
+project. OBS binaries are not copied into the WhisperBleep packages; the
+target OBS installation remains the host for `libobs` and its dependencies.
+
+The macOS job deliberately remains the unsigned universal portable archive.
+Hosted macOS runners do not provide the Apple SDK/signing toolchain required by
+the current OBS source, and macOS native packaging is outside this unsigned
+installer lane.
 
 Native staging uses the host plugin locations: `obs-plugins/64bit` on Windows,
 `lib/x86_64-linux-gnu/obs-plugins` on the Ubuntu package lane and `obs-plugins`
