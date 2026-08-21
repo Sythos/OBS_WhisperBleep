@@ -19,7 +19,9 @@
 namespace {
 
 using obs_whisperbleep::obs::FilterSettings;
+using obs_whisperbleep::obs::NativeAudioBridge;
 using obs_whisperbleep::obs::ObsFilter;
+using obs_whisperbleep::obs::make_default_native_runtime;
 using obs_whisperbleep::diagnostics::DebugLog;
 
 struct NativeFilterData {

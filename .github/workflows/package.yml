@@ -45,7 +45,10 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends dpkg-dev extra-cmake-modules libsimde-dev
+          sudo apt-get install --yes --no-install-recommends \
+            dpkg-dev extra-cmake-modules libsimde-dev \
+            libavcodec-dev libavformat-dev libavutil-dev \
+            libswresample-dev libswscale-dev
 
       - name: Build pinned OBS libobs SDK (native lane)
         if: ${{ inputs.native_obs == true }}
