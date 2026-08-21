@@ -275,7 +275,7 @@ void test_timeline_rejection_is_pass_through() {
   expect(results.size() == 2 && results[0].status == EndToEndStatus::processed &&
              results[1].status == EndToEndStatus::pass_through_timeline_rejected,
          "rejects an unmarked gap instead of applying stale censor data");
-  expect(results[1].output.audio.first_frame == 2'000 &&
+  expect(results[1].output.first_frame == 2'000 &&
              results[1].output.audio.samples == std::vector<float>(4, 1.0F),
          "returns the untouched frame for a rejected timeline chunk");
   expect(runtime.call_count == 1,
