@@ -247,18 +247,22 @@ adapter boundary: the C++ core has no Python or Whisper link-time dependency.
 
 The core never creates, launches or supervises the bridge process. A platform
 host injects `WhisperProcessRunner` and owns process lifetime, I/O and failure
-policy; a missing runner leaves the adapter explicitly unavailable. This makes
-the protocol deterministic to test without Python or model weights and keeps
-platform process APIs outside the portable core.
+policy; a missing runner leaves the adapter explicitly unavailable. The native
+OBS adapter now supplies that host-owned persistent runner, performs bounded
+capture and returns delayed processed output or pass-through audio. This keeps
+process APIs outside the portable core and makes the protocol deterministic to
+test without Python or model weights.
 
-M7 does not yet wire processed M7 output into the native OBS filter callback.
-That integration must define delayed-output ownership, bridge lifecycle,
-settings-to-runtime activation, back-pressure reporting and measured end-to-end
-latency before it can claim a native OBS runtime.
+The remaining native runtime gates are settings-to-model-manager activation,
+explicit backend/device propagation, spoken-language mapping, model-cache
+verification through the OBS UI and measured end-to-end latency. The local
+procedure in [`docs/runtime-python.md`](runtime-python.md) and
+[`scripts/test-local.ps1`](../scripts/test-local.ps1) exercises each available
+layer without silently downloading a model.
 
 => Deferred milestones
 
-Production native OBS runtime wiring, host-owned bridge-process lifecycle,
-production CUDA execution, model-weight redistribution and a finished installer
-remain later milestones. The repository continues to keep model weights outside
-Git and outside release staging.
+Production backend/device execution, model-manager wiring, model-weight
+redistribution and a finished host-runtime installer remain later milestones.
+The repository continues to keep model weights outside Git and outside release
+staging.

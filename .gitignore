@@ -27,6 +27,10 @@ temp/
 
 # Language and tool caches --------------------------------------------------
 .cache/
+.venv/
+venv/
+.runtime-venv/
+.uv-cache/
 .npm/
 .pytest_cache/
 __pycache__/
@@ -49,6 +53,7 @@ compile_commands.json
 dist/
 artifacts/
 packages/
+test-results/
 
 # Compiled objects and local binaries ---------------------------------------
 *.obj

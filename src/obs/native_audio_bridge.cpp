@@ -805,6 +805,10 @@ std::size_t NativeAudioBridge::dropped_results() const noexcept {
 std::unique_ptr<runtime::IWhisperRuntime> make_default_native_runtime() {
   runtime::OpenAIWhisperRuntimeConfig config;
   config.python_executable = "python";
+  if (const char* configured = std::getenv("OBS_WHISPERBLEEP_PYTHON");
+      configured != nullptr && configured[0] != '\0') {
+    config.python_executable = configured;
+  }
   config.bridge_script_path = bridge_script_path();
   config.runner = runtime::make_persistent_whisper_process_runner();
   return std::make_unique<runtime::OpenAIWhisperRuntime>(std::move(config));

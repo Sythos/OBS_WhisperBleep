@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
+#
+# Baseline host environment for the optional OpenAI Whisper bridge.
+# Use Python 3.11 for the widest compatibility with the upstream Whisper
+# package. Model weights are never installed by this file.
+numpy>=1.26,<3
+openai-whisper==20250625
+torch==2.7.1

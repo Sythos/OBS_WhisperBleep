@@ -241,6 +241,12 @@ OpenAI Whisper, PyTorch, NumPy and the selected model. M7 is therefore a
 functional integration slice, not a claim that those optional runtime
 dependencies are bundled or production-ready.
 
+The staged local verification procedure is documented in
+[`docs/runtime-python.md`](docs/runtime-python.md) and implemented by
+[`scripts/test-local.ps1`](scripts/test-local.ps1). It performs a no-model
+protocol smoke test by default; a real model test requires an existing verified
+absolute model path and never downloads weights automatically.
+
 => Technologies
 
 The project is built around the following technologies:
