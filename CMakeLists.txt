@@ -23,6 +23,9 @@ option(OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE
 option(OBS_WHISPERBLEEP_ENABLE_CUDA "Reserve the CUDA backend option for a validated implementation" OFF)
 set(OBS_SDK_DIR "" CACHE PATH "OBS SDK directory containing libobs headers and libraries")
 set(OBS_LIB "" CACHE FILEPATH "Optional explicit libobs library for the native module")
+set(OBS_WHISPERBLEEP_PLUGIN_INSTALL_DIR "obs-plugins" CACHE PATH
+  "Relative OBS plugin directory used when staging a package"
+)
 set(WHISPER_RUNTIME "stub" CACHE STRING "Whisper runtime selection")
 set_property(CACHE WHISPER_RUNTIME PROPERTY STRINGS stub openai-whisper native)
 
@@ -50,6 +53,7 @@ set(OBS_WHISPERBLEEP_CORE_SOURCES
   src/replacement/replacement_catalog.cpp
   src/replacement/wav_audio_loader.cpp
   src/runtime/backend_selector.cpp
+  src/runtime/persistent_process_runner.cpp
   src/runtime/whisper_runtime.cpp
   src/platform/platform_info.cpp
   src/ui/localization.cpp
@@ -141,11 +145,13 @@ if(OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE)
 
   add_library(obs_whisperbleep_plugin MODULE
     src/obs/obs_module.cpp
+    src/obs/native_audio_bridge.cpp
     src/obs/obs_filter.cpp
     src/obs/obs_properties.cpp
   )
   target_include_directories(obs_whisperbleep_plugin PRIVATE
     include
+    src/obs/include
     "${OBS_INCLUDE_DIR}"
     "${OBS_MODULE_INCLUDE_DIR}"
   )
@@ -287,6 +293,26 @@ if(OBS_WHISPERBLEEP_BUILD_TESTS)
   target_link_libraries(obs_whisperbleep_m6_latency_tests PRIVATE obs_whisperbleep_core)
   target_include_directories(obs_whisperbleep_m6_latency_tests PRIVATE include)
   add_test(NAME m6_latency COMMAND obs_whisperbleep_m6_latency_tests)
+
+  add_executable(obs_whisperbleep_m7_pipeline_tests
+    tests/m7/test_m7_pipeline.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m7_pipeline_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m7_pipeline_tests PRIVATE include)
+  add_test(NAME m7_pipeline COMMAND obs_whisperbleep_m7_pipeline_tests)
+
+  add_executable(obs_whisperbleep_m7_process_helper
+    tests/m7/process_helper.cpp
+  )
+
+  add_executable(obs_whisperbleep_m7_process_runner_tests
+    tests/m7/test_m7_process_runner.cpp
+  )
+  target_link_libraries(obs_whisperbleep_m7_process_runner_tests PRIVATE obs_whisperbleep_core)
+  target_include_directories(obs_whisperbleep_m7_process_runner_tests PRIVATE include)
+  add_test(NAME m7_process_runner
+    COMMAND obs_whisperbleep_m7_process_runner_tests
+            $<TARGET_FILE:obs_whisperbleep_m7_process_helper>)
 endif()
 
 install(TARGETS obs_whisperbleep_core
@@ -295,15 +321,15 @@ install(TARGETS obs_whisperbleep_core
 )
 if(OBS_WHISPERBLEEP_BUILD_PLUGIN_STUB)
   install(TARGETS obs_whisperbleep_plugin_stub
-    LIBRARY DESTINATION obs-plugins
-    RUNTIME DESTINATION obs-plugins
+    LIBRARY DESTINATION "${OBS_WHISPERBLEEP_PLUGIN_INSTALL_DIR}"
+    RUNTIME DESTINATION "${OBS_WHISPERBLEEP_PLUGIN_INSTALL_DIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   )
 endif()
 if(OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE)
   install(TARGETS obs_whisperbleep_plugin
-    LIBRARY DESTINATION obs-plugins
-    RUNTIME DESTINATION obs-plugins
+    LIBRARY DESTINATION "${OBS_WHISPERBLEEP_PLUGIN_INSTALL_DIR}"
+    RUNTIME DESTINATION "${OBS_WHISPERBLEEP_PLUGIN_INSTALL_DIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   )
 endif()
@@ -339,7 +365,9 @@ set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Sythos")
 set(CPACK_DEBIAN_PACKAGE_SECTION "sound")
 set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "${CPACK_PACKAGE_HOMEPAGE_URL}")
 set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS "${OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE}")
+# The host OBS installation supplies libobs; it is intentionally not copied
+# into this package and must not be inferred as a package-owned dependency.
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
 set(CPACK_RPM_PACKAGE_NAME "obs-whisperbleep")
 set(CPACK_RPM_PACKAGE_VENDOR "${CPACK_PACKAGE_VENDOR}")

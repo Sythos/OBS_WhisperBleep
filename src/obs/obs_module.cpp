@@ -5,11 +5,14 @@
 #include <obs.h>
 
 #include <cstdlib>
+#include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <string>
 
 #include "obs_whisperbleep/diagnostics/debug_log.hpp"
 #include "obs_whisperbleep/model/model_catalog.hpp"
+#include "obs_whisperbleep/obs/native_audio_bridge.hpp"
 #include "obs_whisperbleep/obs/obs_filter.hpp"
 #include "obs_whisperbleep/ui/localization.hpp"
 
@@ -23,6 +26,7 @@ struct NativeFilterData {
   obs_source_t* source{nullptr};
   ObsFilter filter;
   DebugLog debug_log;
+  std::unique_ptr<NativeAudioBridge> audio_bridge;
 };
 
 const char* filter_name(void*) {
@@ -54,6 +58,31 @@ void configure_debug_log(NativeFilterData& data, const bool enabled) {
   if (data.debug_log.ready()) {
     data.debug_log.write_line("filter", "debug logging enabled");
   }
+}
+
+std::uint32_t configured_sample_rate() {
+  struct obs_audio_info audio_info{};
+  return obs_get_audio_info(&audio_info) && audio_info.samples_per_sec != 0
+             ? audio_info.samples_per_sec
+             : 48000;
+}
+
+std::uint16_t configured_channels() {
+  struct obs_audio_info audio_info{};
+  if (obs_get_audio_info(&audio_info)) {
+    const auto channels = get_audio_channels(audio_info.speakers);
+    if (channels != 0 && channels <= MAX_AV_PLANES) {
+      return static_cast<std::uint16_t>(channels);
+    }
+  }
+  auto* audio = obs_get_audio();
+  if (audio == nullptr) {
+    return 1;
+  }
+  const auto channels = audio_output_get_channels(audio);
+  return channels == 0 || channels > MAX_AV_PLANES
+             ? 1
+             : static_cast<std::uint16_t>(channels);
 }
 
 std::string setting_string(obs_data_t* settings, const char* key,
@@ -88,6 +117,13 @@ void* filter_create(obs_data_t* settings, obs_source_t* source) {
   data->filter.update(filter_settings);
   configure_debug_log(*data, filter_settings.debug);
   data->filter.load();
+  data->audio_bridge = std::make_unique<NativeAudioBridge>(
+      filter_settings, configured_sample_rate(), configured_channels(),
+      make_default_native_runtime());
+  if (filter_settings.enabled && !data->audio_bridge->start() &&
+      data->debug_log.ready()) {
+    data->debug_log.write_line("filter", "audio pipeline did not start");
+  }
   return data;
 }
 
@@ -98,6 +134,9 @@ void filter_destroy(void* opaque) {
   }
   if (data->debug_log.ready()) {
     data->debug_log.write_line("filter", "destroyed");
+  }
+  if (data->audio_bridge != nullptr) {
+    data->audio_bridge->stop();
   }
   data->filter.unload();
   delete data;
@@ -110,6 +149,9 @@ void filter_update(void* opaque, obs_data_t* settings) {
     const bool debug_changed =
         filter_settings.debug != data->filter.settings().debug;
     data->filter.update(filter_settings);
+    if (data->audio_bridge != nullptr) {
+      data->audio_bridge->update(filter_settings);
+    }
     if (debug_changed) {
       configure_debug_log(*data, filter_settings.debug);
     } else if (filter_settings.debug && data->debug_log.ready()) {
@@ -118,10 +160,12 @@ void filter_update(void* opaque, obs_data_t* settings) {
   }
 }
 
-struct obs_audio_data* filter_audio(void*, struct obs_audio_data* audio) {
-  // M1 deliberately leaves the audio untouched. Inference and replacement
-  // belong to later milestones and must never run in this callback.
-  return audio;
+struct obs_audio_data* filter_audio(void* opaque, struct obs_audio_data* audio) {
+  auto* data = static_cast<NativeFilterData*>(opaque);
+  if (data == nullptr || data->audio_bridge == nullptr) {
+    return audio;
+  }
+  return data->audio_bridge->filter_audio(audio);
 }
 
 obs_properties_t* filter_properties(void* opaque) {
