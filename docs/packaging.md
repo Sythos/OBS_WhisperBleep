@@ -76,23 +76,27 @@ deliverables. The handoff must not replace package validation, modify the
 release payload set silently or claim that an unsigned artifact is signed.
 
 The current package contents are limited by the implementation boundary. The
-default CI builds the portable core and plugin stub; the native OBS module
-requires an explicitly supplied OBS SDK and `libobs`, and M7 has not yet wired
-its processed output into that native callback. Consequently, these artifacts
-must not be presented as a complete, production-ready native OBS Whisper
-runtime.
+default CI builds the portable core and plugin stub; the opt-in native lane
+builds the OBS module against an explicitly supplied OBS SDK and `libobs`, and
+M7 now wires delayed processed output back into the native callback through a
+bounded adapter worker. The optional Whisper runtime still requires a host
+provided Python environment, dependencies and model, so these artifacts must
+not be presented as a complete, production-ready runtime.
 
 => M7 optional bridge boundary
 
 M7 adds `runtime/openai_whisper_bridge.py` as an optional JSON-lines bridge for
-an OpenAI Whisper host integration. Its presence does not bundle Python,
-OpenAI Whisper, PyTorch, NumPy, model weights, a Python environment or a
-process launcher. The portable core requires an injected host runner and does
+an OpenAI Whisper host integration. The native OBS adapter keeps the bridge
+process and its runner on the host-owned worker side; the OBS audio callback
+never launches a process or performs inference. The repository does not bundle
+Python, OpenAI Whisper, PyTorch, NumPy, model weights, a Python environment or
+a process launcher. The portable core requires an injected host runner and does
 not create a bridge process itself.
 
 No M7 packaging decision may imply that the bridge is runnable on an end-user
-system. A later release gate must define the supported Python/runtime strategy,
-dependency licenses and notices, platform process lifecycle, model-cache
+system without that host setup. A later release gate must define the supported
+Python/runtime strategy, dependency licenses and notices, platform process
+lifecycle, model-cache
 location, package contents and the failure/pass-through behavior when the
 optional runtime is absent. Until then, staged packages must continue to
 exclude model weights, caches, credentials and undeclared runtime dependencies.
@@ -102,7 +106,9 @@ exclude model weights, caches, credentials and undeclared runtime dependencies.
 The normal `main` push package lane remains OBS-independent and builds the
 portable plugin stub. This keeps deterministic CI green when no OBS development
 environment is available. A deliberate native run can be requested through the
-`native_obs` boolean input on `workflow_dispatch` or `workflow_call`.
+`native_obs` boolean input on `workflow_dispatch` or `workflow_call`; the
+release workflow enables this input automatically for its Linux and Windows
+payloads.
 
 The native Linux and Windows lane checks out the pinned OBS Studio `32.1.2`
 source tag with its recursive submodules, lets the OBS CMake preset fetch its
@@ -121,4 +127,5 @@ Native staging uses the host plugin locations: `obs-plugins/64bit` on Windows,
 on macOS. The native input is intentionally opt-in: if the pinned OBS build or
 native module fails, that run fails visibly rather than silently publishing a
 stub under a native package name. The default stub artifacts remain available
-for deterministic fallback and boundary testing.
+for deterministic fallback and boundary testing. The macOS release payload
+remains the unsigned universal archive described above.

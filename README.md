@@ -56,21 +56,22 @@ investigate the problem clearly and safely.
 
 The project is still in pre-alpha. The remaining development milestones are:
 
-- native OBS wiring for the M7 Whisper vertical slice, including the host-owned
-  bridge-process lifecycle and delayed processed-output hand-off;
-- complete native OBS/Qt configuration UI and the full update-check flow;
-- production CPU/GPU backend integration, runtime dependency bundling and
+- production CPU/GPU backend integration, host runtime dependency strategy and
   validation on supported systems;
+- complete native OBS/Qt configuration UI and the full update-check flow;
+- measured end-to-end latency evidence for the complete Whisper path, including
+  the 1.5-second processing budget and any justified video-delay reassessment;
 - verified royalty-free and redistributable replacement assets with complete
   provenance metadata;
 - realtime hardening, stress testing, regression coverage and long-running
   stability checks;
-- release packaging, checksums, signing or notarization where applicable and
-  tag-gated publication;
+- optional signing or notarization where applicable and wider host/runtime
+  compatibility validation;
 - complete user, setup and support documentation.
 
-The current codebase provides early architectural boundaries and deterministic
-test coverage, but it does not yet claim public-release quality.
+The current codebase includes a native OBS audio path and CI-validated unsigned
+Linux and Windows packages, but it does not yet claim production-release
+quality.
 
 => M0 and M1: scaffold and OBS boundary
 
@@ -210,10 +211,10 @@ a separate step.
 A staged package is not yet a finished public release: model weights, model
 caches, credentials, unverified audio, CUDA redistributables and runtime
 dependencies are not bundled by default. The default CI builds the portable
-core and plugin stub; the native OBS module still requires an explicit OBS SDK
-and `libobs`, and M7 processed output is not yet wired into its callback.
-macOS signing/notarization, complete Whisper runtime packaging and tag-gated
-publication remain part of the next release milestone.
+core and plugin stub; the native release lane builds Linux and Windows against
+an explicit OBS SDK and `libobs`, while macOS remains an unsigned universal
+stub archive. Complete Whisper runtime packaging, production latency evidence
+and host compatibility validation remain future work.
 
 => M7 optional OpenAI Whisper vertical slice
 
@@ -231,10 +232,14 @@ Whisper nor launches a process. Instead, the host injects a process runner;
 without one the adapter reports itself unavailable and the audio path remains
 safe. The bridge imports its optional dependencies only after initialization.
 
-The built-in, dependency-free `beep` remains the default replacement. M7 is a
-vertical slice, not a claim of a finished native OBS runtime: native OBS
-processed-output wiring, bridge-process ownership/lifetime in a platform host,
-real latency evidence and production dependency packaging are the next gate.
+The built-in, dependency-free `beep` remains the default replacement. The
+native OBS bridge now connects the bounded pipeline to the host audio filter:
+the realtime callback only performs bounded capture and hand-off, while the
+adapter worker returns delayed processed audio or a safe pass-through frame.
+The host still owns the persistent bridge process and must provide Python,
+OpenAI Whisper, PyTorch, NumPy and the selected model. M7 is therefore a
+functional integration slice, not a claim that those optional runtime
+dependencies are bundled or production-ready.
 
 => Technologies
 
@@ -242,9 +247,10 @@ The project is built around the following technologies:
 
 - C++20 for the native OBS Studio plugin and real-time audio processing.
 - CMake for cross-platform configuration, builds and packaging.
-- [OBS Studio 32.2.1](https://obsproject.com/download) as the host
-  application and native plugin API target; this is the stable version listed
-  on the official OBS download page, verified on 2026-08-16.
+- [OBS Studio 32.2.2](https://obsproject.com/download) as the current stable
+  host application and native plugin API reference, verified on 2026-08-21.
+  The reproducible native CI lane builds against the pinned OBS 32.1.2
+  `libobs` SDK.
 - [OpenAI Whisper](https://github.com/openai/whisper) for speech-recognition
   models and the AI processing structure.
 - Python for model tooling and supporting automation.
@@ -265,14 +271,13 @@ license and attribution have been verified.
 
 ==> Binary availability and warranty
 
-Prebuilt binaries will be released as soon as they are ready, with Linux
-x86_64 and Windows x64 as the initial targets for fully operational builds. The
-current pre-alpha packages are still limited to the portable core and
-plugin-stub boundary described above. A universal macOS build may also be
-provided, but it will likely remain unsigned for now: Apple signing and
-notarization require a paid developer membership, certificates and additional
-administrative work that are not financially sustainable for the project at
-this stage.
+Binaries are being made available as soon as possible. Linux x86_64 and
+Windows x64 are the first fully operational targets; their CI packages contain
+the native OBS plugin build against the pinned `libobs` SDK. A universal macOS
+archive may also be provided, but it is expected to remain unsigned for now:
+Apple signing and notarization require a paid developer membership,
+certificates and additional administrative work that are not financially
+sustainable for the project at this stage.
 
 Everything is provided `as is`, without warranty of any kind. Please test it
 carefully before relying on it in a live or production environment.

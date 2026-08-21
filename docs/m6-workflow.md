@@ -462,31 +462,33 @@ package scanning and end-to-end latency evidence through a real Whisper
 adapter; the portable runtime remains an injected boundary until that later
 runtime milestone is implemented.
 
-=> 10.2 M7 transition and next gate
+=> 10.2 M7 implementation and next gate
 
-The M7 worktree vertical slice adds `OpenAIWhisperRuntime`, the optional
-`runtime/openai_whisper_bridge.py` JSON-lines bridge and
-`EndToEndAudioPipeline`. The pipeline uses a bounded dedicated worker for
-runtime transcription, matching, scheduling and rendering; rejected or failed
-work preserves host pass-through audio, and `beep` remains the default
-replacement. The core does not launch the bridge process: a host injects and
-owns the runner.
+The M7 implementation on `main` adds `OpenAIWhisperRuntime`, the optional
+`runtime/openai_whisper_bridge.py` JSON-lines bridge, `EndToEndAudioPipeline`
+and the native `NativeAudioBridge`. The pipeline uses a bounded dedicated
+worker for runtime transcription, matching, scheduling and rendering; the OBS
+callback performs only bounded capture and hand-off, while the adapter returns
+delayed processed audio or a safe pass-through frame. Rejected or failed work
+preserves host audio, and `beep` remains the default replacement. The core does
+not launch the bridge process: a host injects and owns the persistent runner.
 
-M7 is not part of the published M6 commit and does not close the M6 latency or
-packaging gates. The next gate is native OBS integration of delayed processed
-output with explicit host process lifecycle, safe back-pressure/status handling
-and measured end-to-end latency evidence. It must also confirm that the
-optional Python/OpenAI Whisper dependencies are not silently bundled or
-required by the portable build.
+The native Linux and Windows lanes now build and package this bridge boundary
+against the pinned OBS `libobs` SDK, with green GitHub Actions validation. The
+macOS lane remains an unsigned universal archive. M7 still does not close the
+latency-evidence or runtime-dependency gates: optional Python/OpenAI Whisper,
+PyTorch, NumPy and model files remain host-provided and are not bundled.
 
-The associated packaging milestone expects one unsigned Windows x64 NSIS
+The associated packaging milestone now produces one unsigned Windows x64 NSIS
 installer, one Linux x86_64 TGZ archive, one Ubuntu 26.04 LTS amd64 DEB and one
-unsigned macOS universal binary archive for the same version. Until the native
-adapter is connected, the default CI package is limited to the portable
-core/plugin stub boundary; it is not evidence of a complete native OBS Whisper
-runtime. Debian 13 and RPM support are deferred to a later compatibility
-milestone. A separate SignPath handoff follows successful package validation
-and does not belong to the portable build or M7 runtime boundary.
+unsigned macOS universal binary archive for the same version. The default CI
+package remains limited to the portable core/plugin stub boundary; the release
+workflow opts into the native Linux/Windows lane and keeps the unsigned macOS
+archive. These artifacts are not evidence of a complete host runtime until the
+dependency strategy and end-to-end latency are validated. Debian 13 and RPM
+support are deferred to a later compatibility milestone. A separate SignPath
+handoff follows successful package validation and does not belong to the
+portable build or M7 runtime boundary.
 
 => 11. Acceptance checklist
 
