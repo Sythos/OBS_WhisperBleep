@@ -46,7 +46,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
-            dpkg-dev extra-cmake-modules libsimde-dev \
+            dpkg-dev extra-cmake-modules libsimde-dev uthash-dev \
             libavcodec-dev libavformat-dev libavutil-dev \
             libswresample-dev libswscale-dev
 

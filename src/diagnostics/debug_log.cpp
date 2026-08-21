@@ -194,6 +194,8 @@ struct DebugLog::Stream {
   }
 };
 
+DebugLog::DebugLog() noexcept = default;
+
 [[nodiscard]] DebugLog DebugLog::open(const DebugLogOptions& options) {
   if (!options.enabled) {
     return DebugLog(DebugLogStatus::disabled, {}, {}, nullptr);

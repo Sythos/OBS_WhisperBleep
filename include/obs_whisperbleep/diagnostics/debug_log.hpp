@@ -34,7 +34,7 @@ enum class DebugLogStatus { disabled, ready, failed };
  */
 class DebugLog final {
  public:
-  DebugLog() noexcept = default;
+  DebugLog() noexcept;
   DebugLog(const DebugLog&) = delete;
   DebugLog& operator=(const DebugLog&) = delete;
   DebugLog(DebugLog&& other) noexcept;
