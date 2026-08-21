@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends dpkg-dev extra-cmake-modules
+          sudo apt-get install --yes --no-install-recommends dpkg-dev extra-cmake-modules libsimde-dev
 
       - name: Build pinned OBS libobs SDK (native lane)
         if: ${{ inputs.native_obs == true }}
@@ -71,8 +71,15 @@ jobs:
               -DENABLE_AJA=OFF
           )
           cmake --build "$obs_source/build_ubuntu" --target libobs --parallel
-          cmake --install "$obs_source/build_ubuntu" --prefix "$obs_install" --component Runtime
-          cmake --install "$obs_source/build_ubuntu" --prefix "$obs_install" --component Development
+          rm -rf "$obs_install"
+          mkdir -p "$obs_install/include"
+          cp -R "$obs_source/libobs/." "$obs_install/include/"
+          obs_config="$(find "$obs_source/build_ubuntu" -type f -name 'obsconfig.h' | head -n 1)"
+          [[ -n "$obs_config" && -f "$obs_config" ]] || {
+            echo 'The pinned OBS build did not generate obsconfig.h.' >&2
+            exit 1
+          }
+          cp "$obs_config" "$obs_install/include/obsconfig.h"
           obs_lib="$(find "$obs_source/build_ubuntu" -type f -name 'libobs.so*' | head -n 1)"
           [[ -n "$obs_lib" && -f "$obs_lib" ]] || {
             echo 'The pinned OBS build did not produce libobs.so.' >&2
@@ -283,10 +290,19 @@ jobs:
           Pop-Location
           cmake --build (Join-Path $obsSource 'build_x64') --target libobs `
             --config Release --parallel
-          cmake --install (Join-Path $obsSource 'build_x64') `
-            --config Release --prefix $obsInstall --component Runtime
-          cmake --install (Join-Path $obsSource 'build_x64') `
-            --config Release --prefix $obsInstall --component Development
+          if (Test-Path -LiteralPath $obsInstall) {
+            Remove-Item -LiteralPath $obsInstall -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path (Join-Path $obsInstall 'include') | Out-Null
+          Copy-Item -Path (Join-Path $obsSource 'libobs\*') `
+            -Destination (Join-Path $obsInstall 'include') -Recurse -Force
+          $obsConfig = @(Get-ChildItem -LiteralPath (Join-Path $obsSource 'build_x64') `
+            -File -Recurse -Filter 'obsconfig.h' | Select-Object -First 1)
+          if ($obsConfig.Count -ne 1) {
+            throw 'The pinned OBS build did not generate obsconfig.h.'
+          }
+          Copy-Item -LiteralPath $obsConfig[0].FullName `
+            -Destination (Join-Path $obsInstall 'include\obsconfig.h') -Force
           $obsLib = @(Get-ChildItem -LiteralPath (Join-Path $obsSource 'build_x64') `
             -File -Recurse -Filter 'obs.lib' | Select-Object -First 1)
           if ($obsLib.Count -ne 1) {
