@@ -63,6 +63,8 @@ jobs:
           set -euo pipefail
           obs_source="$RUNNER_TEMP/obs-studio"
           obs_install="$RUNNER_TEMP/obs-install"
+          rm -rf "$obs_install"
+          mkdir -p "$obs_install"
           git clone --depth 1 --branch "$OBS_STUDIO_VERSION" --recurse-submodules \
             https://github.com/obsproject/obs-studio.git "$obs_source"
           (
@@ -76,17 +78,22 @@ jobs:
               -DENABLE_WAYLAND=OFF \
               -DENABLE_PULSEAUDIO=OFF \
               -DENABLE_WEBRTC=OFF \
-              -DENABLE_AJA=OFF
+              -DENABLE_AJA=OFF \
+              -DCMAKE_INSTALL_PREFIX="$obs_install"
           )
-          set +e
-          cmake --build "$obs_source/build_ubuntu" --target libobs --parallel
-          obs_build_status=$?
-          set -e
+          if cmake --build "$obs_source/build_ubuntu" --target libobs --parallel; then
+            obs_build_status=0
+          else
+            obs_build_status=$?
+          fi
           # OBS 32.1.x can return 1 from its final unversioned symlink step
           # after the versioned shared library has already been linked. Treat
           # that narrow post-link condition as usable, but never hide a build
           # that did not produce a real shared library.
-          obs_lib="$(find "$obs_source/build_ubuntu" -type f -name 'libobs.so.*' -print -quit)"
+          obs_lib="$(find "$obs_source/build_ubuntu" -type f -name 'libobs.so.*' -print -quit || true)"
+          echo "OBS libobs build exit status: $obs_build_status"
+          echo "OBS versioned libraries found:"
+          find "$obs_source/build_ubuntu" -type f -name 'libobs.so.*' -print || true
           if [[ "$obs_build_status" -ne 0 ]]; then
             [[ -n "$obs_lib" && -s "$obs_lib" ]] || {
               echo "The pinned OBS libobs build failed before producing a shared library." >&2
@@ -94,7 +101,6 @@ jobs:
             }
             echo "OBS libobs produced $obs_lib but reported a post-link symlink failure; continuing with the verified library."
           fi
-          rm -rf "$obs_install"
           mkdir -p "$obs_install/include"
           cp -R "$obs_source/libobs/." "$obs_install/include/"
           obs_config="$(find "$obs_source/build_ubuntu" -type f -name 'obsconfig.h' -print -quit)"
