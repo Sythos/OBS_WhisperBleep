@@ -69,13 +69,13 @@ The project is still in pre-alpha. The remaining development milestones are:
   compatibility validation;
 - complete user, setup and support documentation.
 
-The current codebase includes a native OBS audio path and CI-validated unsigned
-Linux and Windows packages, but it does not yet claim production-release
-quality.
+The current codebase includes a native OBS audio path and CI-validated Linux
+packages plus an unsigned Windows installer; it does not yet claim
+production-release quality.
 
 => M0 and M1: scaffold and OBS boundary
 
-The first reference version is `0.1.0`. The repository separates core,
+The current release version is `0.1.2`. The repository separates core,
 model/runtime, OBS and platform code, and now includes a pass-through native OBS
 filter target that is enabled only when an OBS SDK and `libobs` library are
 provided explicitly.
@@ -218,7 +218,7 @@ and host compatibility validation remain future work.
 
 => M7 optional OpenAI Whisper vertical slice
 
-Version `0.1.0` now contains an optional, testable path from accepted audio to
+Version `0.1.2` now contains an optional, testable path from accepted audio to
 transcription, phrase matching and replacement rendering. `EndToEndAudioPipeline`
 uses one bounded worker: realtime submission only timestamps and enqueues a
 frame, while Whisper calls, matching, timeline conversion, rendering and result
@@ -252,6 +252,11 @@ The staged local verification procedure is documented in
 [`scripts/test-local.ps1`](scripts/test-local.ps1). It performs a no-model
 protocol smoke test by default; a real model test requires an existing verified
 absolute model path and never downloads weights automatically.
+
+The optional CPU runtime container is published alongside normal releases at
+`ghcr.io/sythos/obs-whisperbleep-runtime`. It contains the bridge and runtime
+dependencies but no model weights; the desktop OBS plugin remains a native
+host component.
 
 => Technologies
 

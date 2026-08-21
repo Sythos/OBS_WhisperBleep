@@ -35,11 +35,12 @@ runtime dependencies. CUDA libraries and drivers are not bundled by this
 boundary; CUDA 13.2 is a capability that must be validated on the target
 Windows or Linux host. macOS remains a non-CUDA target for this phase.
 
-A successful CPack staging check does not mean that a public installer or
-release is ready. The native Whisper runtime, complete OBS/runtime dependency
-bundling, Windows/Linux CUDA distribution decisions, macOS signing and
-notarization, and tag-gated GitHub binary publication remain deferred to the
-next release milestone.
+A successful CPack staging check does not by itself make a public installer
+ready. The native Whisper runtime, complete OBS/runtime dependency bundling,
+Windows/Linux CUDA distribution decisions, and macOS signing and notarization
+remain outside this unsigned package boundary. Tag-gated GitHub publication is
+implemented for the validated installer payloads and the optional runtime
+container.
 
 => Release artifact milestone
 
@@ -69,11 +70,14 @@ The general build/test matrix remains on Ubuntu 24.04 for a stable baseline.
 Debian 13 installation and RPM generation are deferred until dedicated
 compatibility tests and dependency metadata are available.
 
-These are unsigned delivery artifacts. Signing is deliberately outside the CI
-build boundary: after the release payloads have passed their checks, a separate
-SignPath handoff may sign the Windows installer and any later platform-specific
-deliverables. The handoff must not replace package validation, modify the
-release payload set silently or claim that an unsigned artifact is signed.
+The Windows installer and macOS archive are unsigned delivery artifacts.
+Linux archives and the DEB use their normal platform filenames without an
+`unsigned` suffix; this workflow does not attach a separate signature to them.
+Signing is deliberately outside the CI build boundary: after the release
+payloads have passed their checks, a separate SignPath handoff may sign the
+Windows installer and any later platform-specific deliverables. The handoff
+must not replace package validation, modify the release payload set silently or
+claim that an unsigned artifact is signed.
 
 The current package contents are limited by the implementation boundary. The
 default CI builds the portable core and plugin stub; the opt-in native lane
@@ -129,3 +133,12 @@ native module fails, that run fails visibly rather than silently publishing a
 stub under a native package name. The default stub artifacts remain available
 for deterministic fallback and boundary testing. The macOS release payload
 remains the unsigned universal archive described above.
+
+=> Runtime container publication
+
+The release workflow also publishes a Linux x86_64 CPU runtime image to
+`ghcr.io/sythos/obs-whisperbleep-runtime`. The image contains Python 3.11,
+OpenAI Whisper, the CPU-only PyTorch wheel, FFmpeg and the JSON-lines bridge;
+it contains no model weights and does not replace the native OBS plugin. The
+immutable version tag and `latest` are pushed only after the installer package
+lane succeeds.

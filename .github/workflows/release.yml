@@ -80,11 +80,22 @@ jobs:
     permissions:
       contents: read
 
+  container:
+    name: Publish runtime container
+    needs: validate
+    uses: ./.github/workflows/container.yml
+    with:
+      version: ${{ needs.validate.outputs.version }}
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
   publish:
     name: Publish latest release
     needs:
       - validate
       - build
+      - container
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -193,5 +204,5 @@ jobs:
             --latest \
             --generate-notes \
             --title "OBS WhisperBleep ${TAG}" \
-            --notes "Installer release ${TAG}. Linux and Windows payloads are native OBS plugin builds against the pinned OBS libobs SDK; the Linux DEB targets Ubuntu 26.04 LTS amd64. The macOS payload is an unsigned universal portable stub. Whisper model weights are not bundled. Use as-is." \
+            --notes "Installer release ${TAG}. Linux and Windows payloads are native OBS plugin builds against the pinned OBS libobs SDK; the Linux DEB targets Ubuntu 26.04 LTS amd64. A CPU runtime container is published at ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/obs-whisperbleep-runtime:${TAG}. The macOS payload is an unsigned universal portable stub. Whisper model weights are not bundled. Use as-is." \
             release-assets/*

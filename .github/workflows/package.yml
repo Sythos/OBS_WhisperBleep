@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
 
-name: Package unsigned artifacts
+name: Package installers and archives
 
 on:
   push:
@@ -242,7 +242,7 @@ jobs:
       - name: Upload Linux packages
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: OBS-WhisperBleep-Linux-x86_64-unsigned
+          name: OBS-WhisperBleep-Linux-x86_64
           path: |
             package-out/OBS-WhisperBleep-*-Linux-x86_64.tar.gz
             package-out/OBS-WhisperBleep-*-Linux-x86_64.deb

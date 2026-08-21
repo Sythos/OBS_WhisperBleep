@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Sythos (www.sythos.net)
+
+name: Publish runtime container
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version from VERSION and the release tag'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build from VERSION'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish Linux x86_64 CPU runtime image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION_INPUT: ${{ inputs.version }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Validate version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$version" == "$VERSION_INPUT" ]]
+
+      - name: Log in to GitHub Container Registry
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io \
+            --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and push versioned and latest images
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/obs-whisperbleep-runtime"
+          docker build --platform linux/amd64 \
+            --build-arg "OBS_WHISPERBLEEP_VERSION=$version" \
+            --file container/Dockerfile \
+            --tag "$image:$version" \
+            --tag "$image:latest" \
+            .
+          docker push "$image:$version"
+          docker push "$image:latest"
+          docker image inspect "$image:$version" \
+            --format '{{index .RepoDigests 0}}'
