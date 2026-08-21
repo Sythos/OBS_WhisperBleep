@@ -82,13 +82,13 @@ jobs:
           rm -rf "$obs_install"
           mkdir -p "$obs_install/include"
           cp -R "$obs_source/libobs/." "$obs_install/include/"
-          obs_config="$(find "$obs_source/build_ubuntu" -type f -name 'obsconfig.h' | head -n 1)"
+          obs_config="$(find "$obs_source/build_ubuntu" -type f -name 'obsconfig.h' -print -quit)"
           [[ -n "$obs_config" && -f "$obs_config" ]] || {
             echo 'The pinned OBS build did not generate obsconfig.h.' >&2
             exit 1
           }
           cp "$obs_config" "$obs_install/include/obsconfig.h"
-          obs_lib="$(find "$obs_source/build_ubuntu" -type f -name 'libobs.so*' | head -n 1)"
+          obs_lib="$(find "$obs_source/build_ubuntu" -type f -name 'libobs.so*' -print -quit)"
           [[ -n "$obs_lib" && -f "$obs_lib" ]] || {
             echo 'The pinned OBS build did not produce libobs.so.' >&2
             exit 1
