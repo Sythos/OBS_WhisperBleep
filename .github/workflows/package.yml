@@ -50,7 +50,7 @@ jobs:
             dpkg-dev extra-cmake-modules libsimde-dev uthash-dev libjansson-dev \
             zlib1g-dev uuid-dev \
             libx11-dev libx11-xcb-dev libxcb1-dev \
-            libgl1-mesa-dev libglvnd-dev \
+            libgl1-mesa-dev libglvnd-dev libdrm-dev \
             libavcodec-dev libavformat-dev libavutil-dev \
             libswresample-dev libswscale-dev
 
