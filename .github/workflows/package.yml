@@ -46,7 +46,9 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
+            build-essential cmake ninja-build git pkg-config ccache ca-certificates \
             dpkg-dev extra-cmake-modules libsimde-dev uthash-dev libjansson-dev \
+            zlib1g-dev uuid-dev \
             libavcodec-dev libavformat-dev libavutil-dev \
             libswresample-dev libswscale-dev
 
