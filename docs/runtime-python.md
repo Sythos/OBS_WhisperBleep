@@ -29,6 +29,48 @@ interpreter available as `python` on the plugin process `PATH`. The local test
 harness accepts an explicit interpreter path and is the recommended way to
 validate a venv.
 
+=> Reproducible Windows workstation setup
+
+The supported local path is a user-owned Python 3.11 x64 environment plus a
+normal C++ toolchain. Install the tools with the Windows package manager or
+their official installers, then open a new terminal so `py`, `cmake` and the
+compiler are visible:
+
+```text
+winget install --id Python.Python.3.11 --exact --source winget --interactive
+winget install --id Kitware.CMake --exact --source winget --interactive
+winget install --id Ninja-build.Ninja --exact --source winget --interactive
+```
+
+The repository also provides a read-only check for these tools. Add
+`-InstallTools` only when you explicitly want WinGet to install the missing
+Python, CMake and Ninja packages:
+
+```text
+pwsh -File scripts/bootstrap-local.ps1
+pwsh -File scripts/bootstrap-local.ps1 -InstallTools
+```
+
+For native C++ builds, install the Visual Studio 2022 C++ workload (Desktop
+development with C++) or use another C++20 compiler supported by CMake. The
+OBS runtime installed on a workstation is not an SDK: native compilation also
+needs matching OBS headers and the `libobs` import/library file. The CI lane
+builds these from the pinned OBS source; a local native run must provide the
+same paths through `OBS_SDK_DIR` and `OBS_LIB`.
+
+Create the project environment and install the pinned CPU baseline with:
+
+```text
+pwsh -File scripts/test-local.ps1 -InstallRuntime -SkipCpp
+```
+
+Use `-RequireNative` only after CMake, a C++20 compiler and matching OBS SDK
+paths are available. GPU testing is a separate opt-in: install the PyTorch
+wheel selected by the official selector for the installed NVIDIA driver, then
+run the same harness with an existing verified model path. The bootstrap never
+downloads model weights and never places Python, CUDA or models inside the
+installer.
+
 => Python baseline and dependency policy
 
 Use a dedicated 64-bit virtual environment per user. Python 3.11 is the

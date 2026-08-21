@@ -146,6 +146,7 @@ if(OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE)
   add_library(obs_whisperbleep_plugin MODULE
     src/obs/obs_module.cpp
     src/obs/native_audio_bridge.cpp
+    src/obs/missing_model_prompt.cpp
     src/obs/obs_filter.cpp
     src/obs/obs_properties.cpp
   )
@@ -159,6 +160,9 @@ if(OBS_WHISPERBLEEP_BUILD_NATIVE_MODULE)
     obs_whisperbleep_core
     "${OBS_LIB}"
   )
+  if(CMAKE_DL_LIBS)
+    target_link_libraries(obs_whisperbleep_plugin PRIVATE ${CMAKE_DL_LIBS})
+  endif()
   target_compile_definitions(obs_whisperbleep_plugin PRIVATE
     OBS_WHISPERBLEEP_WITH_OBS=1
   )

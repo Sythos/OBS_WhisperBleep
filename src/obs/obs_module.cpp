@@ -12,6 +12,7 @@
 
 #include "obs_whisperbleep/diagnostics/debug_log.hpp"
 #include "obs_whisperbleep/model/model_catalog.hpp"
+#include "missing_model_prompt.hpp"
 #include "obs_whisperbleep/obs/native_audio_bridge.hpp"
 #include "obs_whisperbleep/obs/obs_filter.hpp"
 #include "obs_whisperbleep/ui/localization.hpp"
@@ -22,6 +23,8 @@ using obs_whisperbleep::obs::FilterSettings;
 using obs_whisperbleep::obs::NativeAudioBridge;
 using obs_whisperbleep::obs::ObsFilter;
 using obs_whisperbleep::obs::make_default_native_runtime;
+using obs_whisperbleep::obs::model_cache_file_present;
+using obs_whisperbleep::obs::request_model_selection;
 using obs_whisperbleep::diagnostics::DebugLog;
 
 struct NativeFilterData {
@@ -119,6 +122,13 @@ void* filter_create(obs_data_t* settings, obs_source_t* source) {
   data->filter.update(filter_settings);
   configure_debug_log(*data, filter_settings.debug);
   data->filter.load();
+  if (!model_cache_file_present(filter_settings.model)) {
+    request_model_selection(source);
+    if (data->debug_log.ready()) {
+      data->debug_log.write_line(
+          "model", "selected model is missing; opening plugin settings");
+    }
+  }
   data->audio_bridge = std::make_unique<NativeAudioBridge>(
       filter_settings, configured_sample_rate(), configured_channels(),
       make_default_native_runtime());

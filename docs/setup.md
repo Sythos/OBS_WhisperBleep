@@ -52,6 +52,15 @@ pass-through audio, initial Properties defaults, settings updates and settings
 persistence. Keep these tests independent from Whisper weights, network access,
 Python, PyTorch and CUDA; those dependencies belong to later milestones.
 
+==> Missing-model startup behavior
+
+The native filter checks the selected model cache entry when the instance is
+created. If it is missing or empty, OBS opens that filter's Properties window
+on the UI task queue, allowing the user to select another model. Audio remains
+safe delayed pass-through while the runtime is unavailable. This prompt is
+deliberately presence-only: model downloads and SHA-256 activation must remain
+asynchronous and are not performed by the OBS audio callback.
+
 => M2 deterministic pipeline verification
 
 M2 keeps the verification path independent of OBS installation, Whisper model

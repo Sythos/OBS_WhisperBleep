@@ -241,6 +241,12 @@ OpenAI Whisper, PyTorch, NumPy and the selected model. M7 is therefore a
 functional integration slice, not a claim that those optional runtime
 dependencies are bundled or production-ready.
 
+When a filter starts with a missing or empty selected model file, the native
+adapter keeps safe delayed pass-through audio and opens that filter's OBS
+Properties window so another model can be selected. It does not download a
+model from the audio callback; verified model acquisition remains an
+asynchronous host-runtime step.
+
 The staged local verification procedure is documented in
 [`docs/runtime-python.md`](docs/runtime-python.md) and implemented by
 [`scripts/test-local.ps1`](scripts/test-local.ps1). It performs a no-model

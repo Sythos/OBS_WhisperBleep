@@ -39,6 +39,17 @@ M1 keeps these properties deliberately small. They are translated into the
 filter instance settings and are persisted through OBS's settings object so
 that reopening a scene or restarting OBS restores the selected values.
 
+==> Missing-model startup behavior
+
+When a native filter instance is created, the adapter checks the selected
+model's per-user cache file before starting inference. If the file is absent
+or empty, it keeps audio in safe delayed pass-through mode and queues the
+filter's OBS Properties window on the UI task queue so the user can choose a
+different model. The check never runs in `filter_audio`, never downloads a
+model and never blocks the realtime callback. A host without the OBS frontend
+API simply retains pass-through behavior; the model-manager download and
+checksum-activation flow remains a later integration gate.
+
 ==> Future plugin menu workflow
 
 The later dynamic Properties surface shall use a two-pane plugin menu: a
